@@ -47,9 +47,12 @@
     /* ── Header ───────────────────────────────────────── */
     .header {
       flex-shrink: 0;
-      padding: 16px 20px 14px;
+      padding: 14px 16px 12px 20px;
       background: var(--bg);
       border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     .logo {
@@ -64,6 +67,155 @@
       font-weight: 300;
       color: var(--lilac);
       margin-top: 2px;
+    }
+
+    .btn-menu {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      color: var(--midnight);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 6px;
+      border-radius: 8px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-menu:hover { background: var(--wini-bg); }
+
+    .btn-menu span {
+      display: block;
+      width: 20px;
+      height: 1.5px;
+      background: var(--midnight);
+      border-radius: 2px;
+      transition: opacity 0.15s;
+    }
+
+    /* ── Drawer overlay ───────────────────────────────── */
+    .drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(42, 36, 64, 0.35);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .drawer-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ── Drawer ───────────────────────────────────────── */
+    .drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      background: var(--bg);
+      z-index: 101;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      box-shadow: 4px 0 24px rgba(42, 36, 64, 0.12);
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-top {
+      padding: 16px 16px 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .drawer-brand .logo { font-size: 20px; }
+    .drawer-brand .tagline { font-size: 11px; }
+
+    .btn-drawer-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--lilac);
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-drawer-close:hover { background: var(--wini-bg); color: var(--midnight); }
+
+    .drawer-nav {
+      flex: 1;
+      padding: 12px 0;
+      overflow-y: auto;
+    }
+
+    .drawer-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 20px;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--lilac);
+      cursor: default;
+      user-select: none;
+      border-radius: 0;
+      transition: background 0.1s;
+    }
+
+    .drawer-item.active {
+      color: var(--midnight);
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .drawer-item.active:hover { background: var(--wini-bg); }
+
+    .drawer-item svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    .drawer-item-label { flex: 1; }
+
+    .drawer-badge {
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      color: var(--lavender);
+      background: var(--border);
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+
+    .drawer-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 20px;
     }
 
     /* ── Chat area ────────────────────────────────────── */
@@ -283,52 +435,61 @@
 
     .btn-send:disabled { opacity: 0.4; cursor: default; }
 
-    /* ── Bottom nav ───────────────────────────────────── */
-    .bottom-nav {
-      flex-shrink: 0;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      display: flex;
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-    }
-
-    .nav-tab {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 4px 8px;
-      gap: 3px;
-      font-size: 10px;
-      font-weight: 400;
-      letter-spacing: 0.02em;
-      color: var(--lavender);
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .nav-tab.active { color: var(--slate); }
-
-    .nav-tab svg {
-      width: 20px;
-      height: 20px;
-      stroke: currentColor;
-      fill: none;
-      stroke-width: 1.7;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    /* V2: activate additional tabs — Tasting Notes, Cellar, Profile */
+    /* V2: activate drawer items — Conversations, Tasting Notes, Cellar, Profile */
   </style>
 </head>
 <body>
 
+  <!-- Drawer overlay -->
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+
+  <!-- Left drawer -->
+  <nav class="drawer" id="drawer" aria-label="Main menu">
+    <div class="drawer-top">
+      <div class="drawer-brand">
+        <div class="logo">Winederella</div>
+        <div class="tagline">your wine guide</div>
+      </div>
+      <button class="btn-drawer-close" id="drawerClose" aria-label="Close menu">×</button>
+    </div>
+    <div class="drawer-nav">
+      <div class="drawer-item active">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="drawer-item-label">Chat</span>
+      </div>
+      <div class="drawer-divider"></div>
+      <div class="drawer-item">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+        <span class="drawer-item-label">Conversations</span>
+        <span class="drawer-badge">soon</span>
+      </div>
+      <div class="drawer-item">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span class="drawer-item-label">Tasting Notes</span>
+        <span class="drawer-badge">soon</span>
+      </div>
+      <div class="drawer-item">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span class="drawer-item-label">Cellar</span>
+        <span class="drawer-badge">soon</span>
+      </div>
+      <div class="drawer-item">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="drawer-item-label">Profile</span>
+        <span class="drawer-badge">soon</span>
+      </div>
+    </div>
+  </nav>
+
   <!-- Header -->
   <header class="header">
-    <div class="logo">Winederella</div>
-    <div class="tagline">your wine guide</div>
+    <div>
+      <div class="logo">Winederella</div>
+      <div class="tagline">your wine guide</div>
+    </div>
+    <button class="btn-menu" id="menuBtn" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
   </header>
 
   <!-- Chat -->
@@ -342,8 +503,9 @@
     </div>
     <div class="input-row">
       <button class="btn-attach" id="attachBtn" aria-label="Attach photo">
-        <svg viewBox="0 0 24 24" width="18" height="18">
-          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
         </svg>
       </button>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
@@ -358,40 +520,6 @@
     </div>
   </div>
 
-  <!-- Bottom nav -->
-  <nav class="bottom-nav" aria-label="App navigation">
-    <div class="nav-tab active" role="tab" aria-selected="true">
-      <svg viewBox="0 0 24 24">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-      Chat
-    </div>
-    <div class="nav-tab" role="tab" aria-selected="false" aria-disabled="true">
-      <svg viewBox="0 0 24 24">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/>
-        <line x1="16" y1="17" x2="8" y2="17"/>
-        <line x1="10" y1="9" x2="8" y2="9"/>
-      </svg>
-      Notes
-    </div>
-    <div class="nav-tab" role="tab" aria-selected="false" aria-disabled="true">
-      <svg viewBox="0 0 24 24">
-        <ellipse cx="12" cy="5" rx="9" ry="3"/>
-        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-      </svg>
-      Cellar
-    </div>
-    <div class="nav-tab" role="tab" aria-selected="false" aria-disabled="true">
-      <svg viewBox="0 0 24 24">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
-      </svg>
-      Profile
-    </div>
-  </nav>
 
   <script>
     // ── Session state ──────────────────────────────────────────────────────────
@@ -410,9 +538,36 @@
     const imgPreview   = document.getElementById('imgPreview');
     const previewSrc   = document.getElementById('previewSrc');
     const removeImgBtn = document.getElementById('removeImg');
+    const menuBtn      = document.getElementById('menuBtn');
+    const drawer       = document.getElementById('drawer');
+    const drawerOverlay = document.getElementById('drawerOverlay');
+    const drawerClose  = document.getElementById('drawerClose');
 
     let pendingImage = null; // { base64, mediaType, dataUrl }
     let isLoading    = false;
+
+    // ── Drawer ─────────────────────────────────────────────────────────────────
+
+    function openDrawer() {
+      drawer.classList.add('open');
+      drawerOverlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDrawer() {
+      drawer.classList.remove('open');
+      drawerOverlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    menuBtn.addEventListener('click', openDrawer);
+    drawerClose.addEventListener('click', closeDrawer);
+    drawerOverlay.addEventListener('click', closeDrawer);
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDrawer();
+    });
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
