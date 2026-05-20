@@ -845,20 +845,52 @@
       }
     }
 
-    // ── Boot: show Wini greeting ───────────────────────────────────────────────
+    // ── Boot: let the model generate its own opening greeting ─────────────────
     // V2: onboarding flow here on first launch — collect preferences, budget, preferred shop
+    //
+    // We call the API with [user:'Hi'] so the model generates the greeting itself
+    // and is already in Wini's voice before the user types anything — same as
+    // how Claude.ai works. A hardcoded greeting fed back as history doesn't warm
+    // the model into character; generating it does.
 
-    (function init() {
-      const greeting = "Hi, I'm Winederella — Wini for short — your wine guide. Tell me what's going on right now and I'll help. Are you shopping, cooking, at a restaurant, or planning something?";
-      appendMessage('wini', greeting);
-      // Seed history with a synthetic 'Hi' + Wini's opening reply so the model
-      // arrives already in character when the user's first real message lands.
-      // Without this, a cold API call with no history causes the model to revert
-      // to generic assistant tone regardless of the system prompt.
-      session.messages.push({ role: 'user',      content: 'Hi' });
-      session.messages.push({ role: 'assistant', content: greeting });
-      msgInput.focus();
-    })();
+    async function init() {
+      setDisabled(true);
+      addTyping();
+
+      // Seed with the user 'Hi' that prompts the opening
+      session.messages.push({ role: 'user', content: 'Hi' });
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: session.messages }),
+        });
+
+        removeTyping();
+
+        if (!res.ok) throw new Error('Failed to connect');
+
+        const data = await res.json();
+        const greeting = data?.content?.[0]?.text ?? "Hi, I'm Winederella — Wini for short — your wine guide. Tell me what's going on right now and I'll help.";
+
+        appendMessage('wini', greeting);
+        session.messages.push({ role: 'assistant', content: greeting });
+
+      } catch {
+        removeTyping();
+        // Fallback to hardcoded greeting if API fails on load
+        const fallback = "Hi, I'm Winederella — Wini for short — your wine guide. Tell me what's going on right now and I'll help. Are you shopping, cooking, at a restaurant, or planning something?";
+        appendMessage('wini', fallback);
+        session.messages.push({ role: 'assistant', content: fallback });
+      } finally {
+        setDisabled(false);
+        updateSendBtn();
+        msgInput.focus();
+      }
+    }
+
+    init();
   </script>
 
 </body>
