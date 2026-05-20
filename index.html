@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Winederella</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #F5F4F9;
+      --surface:   #EDEAF4;
+      --wini-bg:   #EAE8F2;
+      --border:    #E0DDE8;
+      --lavender:  #C5C0D4;
+      --lilac:     #9B93B8;
+      --slate:     #7B6FA0;
+      --midnight:  #2A2440;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.6;
+      color: var(--midnight);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    .header {
+      flex-shrink: 0;
+      padding: 16px 20px 14px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      color: var(--midnight);
+    }
+
+    .tagline {
+      font-size: 12px;
+      font-weight: 300;
+      color: var(--lilac);
+      margin-top: 2px;
+    }
+
+    /* ── Chat area ────────────────────────────────────── */
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 14px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .chat::-webkit-scrollbar { width: 0; }
+
+    /* ── Message rows ─────────────────────────────────── */
+    .row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .row.user {
+      flex-direction: row-reverse;
+    }
+
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--midnight);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .bubble {
+      max-width: 78%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .bubble.wini {
+      background: var(--wini-bg);
+      color: var(--midnight);
+      border-bottom-left-radius: 4px;
+    }
+
+    .bubble.user {
+      background: var(--slate);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bubble img {
+      display: block;
+      max-width: 100%;
+      border-radius: 10px;
+      margin-bottom: 6px;
+    }
+
+    /* light markdown */
+    .bubble p { margin-bottom: 7px; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble strong { font-weight: 500; }
+    .bubble em { font-style: italic; }
+    .bubble ul, .bubble ol {
+      padding-left: 18px;
+      margin-bottom: 7px;
+    }
+    .bubble li { margin-bottom: 2px; }
+    .bubble.user ul, .bubble.user ol { color: rgba(255,255,255,0.92); }
+
+    /* typing indicator */
+    .typing {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 12px 14px;
+    }
+
+    .typing span {
+      display: block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--lavender);
+      animation: dot-bounce 1.3s ease-in-out infinite;
+    }
+
+    .typing span:nth-child(2) { animation-delay: 0.18s; }
+    .typing span:nth-child(3) { animation-delay: 0.36s; }
+
+    @keyframes dot-bounce {
+      0%, 60%, 100% { transform: translateY(0);   opacity: 0.6; }
+      30%            { transform: translateY(-7px); opacity: 1;   }
+    }
+
+    /* ── Input bar ────────────────────────────────────── */
+    .input-area {
+      flex-shrink: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .img-preview {
+      display: none;
+      margin-bottom: 8px;
+      position: relative;
+      width: fit-content;
+    }
+
+    .img-preview img {
+      height: 64px;
+      width: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    .img-preview-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--midnight);
+      color: #fff;
+      border: none;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .btn-attach {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1.5px solid var(--lavender);
+      background: transparent;
+      color: var(--lilac);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-attach:hover { border-color: var(--slate); color: var(--slate); }
+    .btn-attach:disabled { opacity: 0.4; cursor: default; }
+
+    .input-pill {
+      flex: 1;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: flex-end;
+      min-height: 38px;
+    }
+
+    textarea {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--midnight);
+      resize: none;
+      line-height: 1.5;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    textarea::placeholder { color: var(--lilac); }
+
+    .btn-send {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--slate);
+      border: none;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: opacity 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-send:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── Bottom nav ───────────────────────────────────── */
+    .bottom-nav {
+      flex-shrink: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 4px 8px;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+      color: var(--lavender);
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .nav-tab.active { color: var(--slate); }
+
+    .nav-tab svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* V2: activate additional tabs — Tasting Notes, Cellar, Profile */
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">Winederella</div>
+    <div class="tagline">your wine guide</div>
+  </header>
+
+  <!-- Chat -->
+  <main class="chat" id="chat"></main>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="img-preview" id="imgPreview">
+      <img id="previewSrc" src="" alt="">
+      <button class="img-preview-remove" id="removeImg" aria-label="Remove image">×</button>
+    </div>
+    <div class="input-row">
+      <button class="btn-attach" id="attachBtn" aria-label="Attach photo">
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
+      <input type="file" id="fileInput" accept="image/*" style="display:none">
+      <div class="input-pill">
+        <textarea id="msgInput" placeholder="Ask Wini anything…" rows="1" aria-label="Message"></textarea>
+      </div>
+      <button class="btn-send" id="sendBtn" disabled aria-label="Send">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="white" stroke="none">
+          <path d="M2 21L23 12 2 3v7l15 2-15 2v7z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav" aria-label="App navigation">
+    <div class="nav-tab active" role="tab" aria-selected="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      Chat
+    </div>
+    <div class="nav-tab" role="tab" aria-selected="false" aria-disabled="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <line x1="10" y1="9" x2="8" y2="9"/>
+      </svg>
+      Notes
+    </div>
+    <div class="nav-tab" role="tab" aria-selected="false" aria-disabled="true">
+      <svg viewBox="0 0 24 24">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+      Cellar
+    </div>
+    <div class="nav-tab" role="tab" aria-selected="false" aria-disabled="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      Profile
+    </div>
+  </nav>
+
+  <script>
+    // ── Session state ──────────────────────────────────────────────────────────
+    // V2: persist session to database for cross-session memory and user profiles
+    const session = {
+      messages: [],      // [{role, content}] — full history sent to API
+      preferences: {}    // V2: populated from onboarding + profile
+    };
+
+    // ── DOM refs ───────────────────────────────────────────────────────────────
+    const chat      = document.getElementById('chat');
+    const msgInput  = document.getElementById('msgInput');
+    const sendBtn   = document.getElementById('sendBtn');
+    const attachBtn = document.getElementById('attachBtn');
+    const fileInput = document.getElementById('fileInput');
+    const imgPreview   = document.getElementById('imgPreview');
+    const previewSrc   = document.getElementById('previewSrc');
+    const removeImgBtn = document.getElementById('removeImg');
+
+    let pendingImage = null; // { base64, mediaType, dataUrl }
+    let isLoading    = false;
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function scrollBottom() {
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    // Minimal markdown → HTML (no external deps)
+    function renderMarkdown(text) {
+      const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      const lines = escaped.split('\n');
+      let html = '';
+      let inList = false;
+      let listTag = '';
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+
+        // Bold & italic
+        line = line
+          .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+        // Unordered list item
+        const ulMatch = line.match(/^[-•]\s+(.*)/);
+        // Ordered list item
+        const olMatch = line.match(/^\d+\.\s+(.*)/);
+
+        if (ulMatch) {
+          if (!inList || listTag !== 'ul') {
+            if (inList) html += `</${listTag}>`;
+            html += '<ul>';
+            inList = true; listTag = 'ul';
+          }
+          html += `<li>${ulMatch[1]}</li>`;
+        } else if (olMatch) {
+          if (!inList || listTag !== 'ol') {
+            if (inList) html += `</${listTag}>`;
+            html += '<ol>';
+            inList = true; listTag = 'ol';
+          }
+          html += `<li>${olMatch[1]}</li>`;
+        } else {
+          if (inList) { html += `</${listTag}>`; inList = false; }
+          if (line.trim() === '') {
+            // blank line = paragraph break (swallow multiple blanks)
+          } else {
+            html += `<p>${line}</p>`;
+          }
+        }
+      }
+
+      if (inList) html += `</${listTag}>`;
+      return html;
+    }
+
+    function setDisabled(disabled) {
+      msgInput.disabled   = disabled;
+      attachBtn.disabled  = disabled;
+      sendBtn.disabled    = disabled || (!msgInput.value.trim() && !pendingImage);
+    }
+
+    function updateSendBtn() {
+      sendBtn.disabled = isLoading || (!msgInput.value.trim() && !pendingImage);
+    }
+
+    // ── Render messages ────────────────────────────────────────────────────────
+
+    function appendMessage(role, text, imageDataUrl) {
+      const row = document.createElement('div');
+      row.className = `row ${role}`;
+
+      if (role === 'wini') {
+        const av = document.createElement('div');
+        av.className = 'avatar';
+        av.textContent = 'W';
+        av.setAttribute('aria-hidden', 'true');
+        row.appendChild(av);
+      }
+
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${role}`;
+
+      if (imageDataUrl) {
+        const img = document.createElement('img');
+        img.src = imageDataUrl;
+        img.alt = 'Attached photo';
+        bubble.appendChild(img);
+      }
+
+      if (text) {
+        const inner = document.createElement('div');
+        inner.innerHTML = renderMarkdown(text);
+        bubble.appendChild(inner);
+      }
+
+      row.appendChild(bubble);
+      chat.appendChild(row);
+      scrollBottom();
+      return { row, bubble };
+    }
+
+    function addTyping() {
+      const row = document.createElement('div');
+      row.className = 'row wini';
+      row.id = 'typing-row';
+
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.textContent = 'W';
+      av.setAttribute('aria-hidden', 'true');
+      row.appendChild(av);
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble wini';
+      bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+      row.appendChild(bubble);
+
+      chat.appendChild(row);
+      scrollBottom();
+    }
+
+    function removeTyping() {
+      const el = document.getElementById('typing-row');
+      if (el) el.remove();
+    }
+
+    // ── Image attach ───────────────────────────────────────────────────────────
+
+    attachBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          // Resize to max 1024px on longest side before encoding —
+          // prevents hitting Vercel's 4.5 MB body limit on real phone photos
+          const MAX = 1024;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+            else                { width  = Math.round(width  * MAX / height); height = MAX; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          const mediaType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+          const dataUrl   = canvas.toDataURL(mediaType, 0.85);
+          const base64    = dataUrl.split(',')[1];
+          pendingImage = { base64, mediaType, dataUrl };
+          previewSrc.src = dataUrl;
+          imgPreview.style.display = 'block';
+          updateSendBtn();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+      fileInput.value = '';
+    });
+
+    removeImgBtn.addEventListener('click', () => {
+      pendingImage = null;
+      imgPreview.style.display = 'none';
+      previewSrc.src = '';
+      updateSendBtn();
+    });
+
+    // ── Textarea auto-resize ───────────────────────────────────────────────────
+
+    msgInput.addEventListener('input', () => {
+      msgInput.style.height = 'auto';
+      msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+      updateSendBtn();
+    });
+
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!sendBtn.disabled) sendMessage();
+      }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    // ── Send ───────────────────────────────────────────────────────────────────
+
+    async function sendMessage() {
+      if (isLoading) return;
+      const text = msgInput.value.trim();
+      if (!text && !pendingImage) return;
+
+      // Build API content block
+      const contentBlocks = [];
+      let displayImageUrl = null;
+
+      if (pendingImage) {
+        contentBlocks.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: pendingImage.mediaType,
+            data: pendingImage.base64,
+          },
+        });
+        displayImageUrl = pendingImage.dataUrl;
+      }
+
+      if (text) {
+        contentBlocks.push({ type: 'text', text });
+      }
+
+      // Render user message
+      appendMessage('user', text, displayImageUrl);
+
+      // Add to session history
+      session.messages.push({
+        role: 'user',
+        content: contentBlocks.length === 1 && contentBlocks[0].type === 'text'
+          ? text          // shorthand for text-only
+          : contentBlocks,
+      });
+
+      // Reset input
+      msgInput.value = '';
+      msgInput.style.height = 'auto';
+      pendingImage = null;
+      imgPreview.style.display = 'none';
+      previewSrc.src = '';
+
+      isLoading = true;
+      setDisabled(true);
+      addTyping();
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: session.messages }),
+        });
+
+        removeTyping();
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server error ${res.status}`);
+        }
+
+        // V2: parse structured wine data for notes storage
+        const data = await res.json();
+        const replyText = data?.content?.[0]?.text ?? '';
+
+        appendMessage('wini', replyText);
+
+        session.messages.push({ role: 'assistant', content: replyText });
+
+      } catch (err) {
+        removeTyping();
+        appendMessage('wini', `Something went wrong — ${err.message}. Try again?`);
+      } finally {
+        isLoading = false;
+        setDisabled(false);
+        updateSendBtn();
+        msgInput.focus();
+      }
+    }
+
+    // ── Boot: show Wini greeting ───────────────────────────────────────────────
+    // V2: onboarding flow here on first launch — collect preferences, budget, preferred shop
+
+    (function init() {
+      const greeting = "Hi, I'm Winederella — Wini for short — your wine guide. Tell me what's going on right now and I'll help. Are you shopping, cooking, at a restaurant, or planning something?";
+      appendMessage('wini', greeting);
+      // Greeting is display-only — session.messages stays empty so the first API
+      // call starts correctly with role:'user'. The system prompt instructs Wini
+      // to open with this exact line, so context is intact.
+      msgInput.focus();
+    })();
+  </script>
+
+</body>
+</html>
