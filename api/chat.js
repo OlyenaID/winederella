@@ -177,7 +177,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-7',
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: messages && messages.length > 0 ? messages : [
