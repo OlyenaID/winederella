@@ -893,35 +893,29 @@
         if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return;
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
-        // Restore existing session (handles OAuth redirect too)
-        const { data: { session: authSession } } = await supabaseClient.auth.getSession();
-        if (authSession?.user) {
-          currentUser = authSession.user;
-          updateHeaderForUser(currentUser);
-        }
-
-        // React to all auth changes.
-        // INITIAL_SESSION fires on every page load (including OAuth redirects).
-        // SIGNED_IN fires after modal-based sign-in.
+        // onAuthStateChange fires immediately with the current state
+        // (INITIAL_SESSION) covering page reloads, OAuth redirects and
+        // existing localStorage sessions — no separate getSession() needed.
         supabaseClient.auth.onAuthStateChange(async (event, authSession) => {
-          if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && authSession?.user) {
-            const isNewSignIn = !currentUser; // true if we weren't signed in before
+          if (authSession?.user) {
+            const isNewSignIn = !currentUser;
             currentUser = authSession.user;
             updateHeaderForUser(currentUser);
             hideModal();
-            // Save chat history only on a new sign-in, not on every page load
+            // Only save conversation on an explicit new sign-in, not every reload
             if (isNewSignIn && event === 'SIGNED_IN' && !currentConvId) {
               await saveCurrentConversation();
             }
-          } else if (event === 'SIGNED_OUT') {
+          } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !authSession)) {
             currentUser   = null;
             currentConvId = null;
             updateHeaderForUser(null);
           }
         });
+
       } catch (err) {
         console.warn('Supabase init failed — auth unavailable:', err.message);
-        // App continues to work without auth
+        // App continues to work fully without auth
       }
     }
 
