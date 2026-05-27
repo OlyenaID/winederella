@@ -492,23 +492,70 @@
       right: 0;
       background: white;
       border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: 0 4px 16px rgba(42,36,64,0.12);
-      min-width: 150px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(42,36,64,0.13);
+      min-width: 200px;
       overflow: hidden;
       z-index: 50;
       display: none;
     }
     .user-dropdown.open { display: block; }
 
+    .dropdown-user-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dropdown-user-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--wini-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .dropdown-user-icon svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--slate);
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .dropdown-email {
+      font-size: 12px;
+      color: var(--lilac);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .dropdown-item {
-      padding: 11px 16px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 12px 16px;
       font-size: 13px;
       color: var(--midnight);
       cursor: pointer;
       transition: background 0.1s;
     }
     .dropdown-item:hover { background: var(--wini-bg); }
+    .dropdown-item svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
     .dropdown-item.danger { color: #b03030; }
 
     /* ── Auth: modal ──────────────────────────────────── */
@@ -728,8 +775,16 @@
       <div class="user-menu" id="userMenu">
         <button class="user-avatar-btn" id="userAvatarBtn" aria-label="Account menu">?</button>
         <div class="user-dropdown" id="userDropdown">
-          <div class="dropdown-item" id="accountItem">My account</div>
-          <div class="dropdown-item danger" id="signOutItem">Sign out</div>
+          <div class="dropdown-user-row">
+            <div class="dropdown-user-icon">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="dropdown-email" id="dropdownEmail">—</div>
+          </div>
+          <div class="dropdown-item danger" id="signOutItem">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Log out
+          </div>
         </div>
       </div>
       <!-- V2: remove display:none to activate the drawer menu -->
@@ -845,14 +900,19 @@
           updateHeaderForUser(currentUser);
         }
 
-        // React to future auth changes
+        // React to all auth changes.
+        // INITIAL_SESSION fires on every page load (including OAuth redirects).
+        // SIGNED_IN fires after modal-based sign-in.
         supabaseClient.auth.onAuthStateChange(async (event, authSession) => {
-          if (event === 'SIGNED_IN' && authSession?.user) {
+          if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && authSession?.user) {
+            const isNewSignIn = !currentUser; // true if we weren't signed in before
             currentUser = authSession.user;
             updateHeaderForUser(currentUser);
             hideModal();
-            // Save current in-progress conversation if it has real messages
-            if (!currentConvId) await saveCurrentConversation();
+            // Save chat history only on a new sign-in, not on every page load
+            if (isNewSignIn && event === 'SIGNED_IN' && !currentConvId) {
+              await saveCurrentConversation();
+            }
           } else if (event === 'SIGNED_OUT') {
             currentUser   = null;
             currentConvId = null;
@@ -871,12 +931,14 @@
       const loginBtn     = document.getElementById('loginBtn');
       const userMenu     = document.getElementById('userMenu');
       const avatarBtn    = document.getElementById('userAvatarBtn');
+      const dropdownEmail = document.getElementById('dropdownEmail');
 
       if (user) {
-        loginBtn.style.display  = 'none';
-        userMenu.style.display  = 'block';
-        const name    = user.user_metadata?.full_name || user.email || '';
-        avatarBtn.textContent   = name[0]?.toUpperCase() || '?';
+        loginBtn.style.display   = 'none';
+        userMenu.style.display   = 'flex';
+        const name               = user.user_metadata?.full_name || user.email || '';
+        avatarBtn.textContent    = name[0]?.toUpperCase() || '?';
+        if (dropdownEmail) dropdownEmail.textContent = user.email || '';
       } else {
         loginBtn.style.display  = '';
         userMenu.style.display  = 'none';
