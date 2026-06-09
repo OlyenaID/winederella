@@ -977,39 +977,11 @@
       }
     }
 
-    // ── Auth: header UI ────────────────────────────────────────────────────────
+    // ── Auth: header UI (no-op — auth UI lives in the drawer now) ──────────────
 
-    function updateHeaderForUser(user) {
-      const loginBtn     = document.getElementById('loginBtn');
-      const userMenu     = document.getElementById('userMenu');
-      const avatarBtn    = document.getElementById('userAvatarBtn');
-      const dropdownEmail = document.getElementById('dropdownEmail');
-
-      if (user) {
-        loginBtn.style.display   = 'none';
-        userMenu.style.display   = 'flex';
-        const name               = user.user_metadata?.full_name || user.email || '';
-        avatarBtn.textContent    = name[0]?.toUpperCase() || '?';
-        if (dropdownEmail) dropdownEmail.textContent = user.email || '';
-      } else {
-        loginBtn.style.display  = '';
-        userMenu.style.display  = 'none';
-      }
+    function updateHeaderForUser(_user) {
+      // drawer handles all auth state display via renderDrawerProfile()
     }
-
-    // Avatar dropdown toggle
-    document.getElementById('userAvatarBtn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.getElementById('userDropdown').classList.toggle('open');
-    });
-
-    document.addEventListener('click', () => {
-      document.getElementById('userDropdown').classList.remove('open');
-    });
-
-    document.getElementById('signOutItem').addEventListener('click', async () => {
-      if (supabaseClient) await supabaseClient.auth.signOut();
-    });
 
     // ── Auth: modal ────────────────────────────────────────────────────────────
 
