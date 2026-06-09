@@ -70,49 +70,36 @@
       margin-top: 2px;
     }
 
-    .btn-menu {
+    /* ── Hamburger button ────────────────────────────── */
+    .btn-hamburger {
       width: 36px;
       height: 36px;
       border: none;
       background: transparent;
       color: var(--midnight);
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 5px;
       cursor: pointer;
       flex-shrink: 0;
-      padding: 6px;
+      padding: 0;
       border-radius: 8px;
+      font-size: 20px;
+      line-height: 1;
       -webkit-tap-highlight-color: transparent;
     }
-
-    .btn-menu:hover { background: var(--wini-bg); }
-
-    /* V2: remove display:none to activate the drawer menu */
-    .btn-menu { display: none; }
-
-    .btn-menu span {
-      display: block;
-      width: 20px;
-      height: 1.5px;
-      background: var(--midnight);
-      border-radius: 2px;
-      transition: opacity 0.15s;
-    }
+    .btn-hamburger:hover { background: var(--wini-bg); }
 
     /* ── Drawer overlay ───────────────────────────────── */
     .drawer-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(42, 36, 64, 0.35);
+      background: rgba(42, 36, 64, 0.3);
       z-index: 100;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.25s ease;
     }
-
     .drawer-overlay.open {
       opacity: 1;
       pointer-events: all;
@@ -126,34 +113,39 @@
       bottom: 0;
       width: 280px;
       background: var(--bg);
+      border-right: 1px solid var(--border);
       z-index: 101;
       display: flex;
       flex-direction: column;
       transform: translateX(-100%);
       transition: transform 0.25s ease;
-      box-shadow: 4px 0 24px rgba(42, 36, 64, 0.12);
     }
-
+    @media (max-width: 400px) {
+      .drawer { width: 85vw; }
+    }
     .drawer.open { transform: translateX(0); }
 
-    .drawer-top {
-      padding: 16px 16px 12px 20px;
-      border-bottom: 1px solid var(--border);
+    .drawer-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 14px 12px 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
-
-    .drawer-brand .logo { font-size: 20px; }
-    .drawer-brand .tagline { font-size: 11px; }
-
+    .drawer-title {
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      color: var(--midnight);
+    }
     .btn-drawer-close {
       width: 32px;
       height: 32px;
       border: none;
       background: transparent;
       color: var(--lilac);
-      font-size: 20px;
+      font-size: 22px;
       line-height: 1;
       cursor: pointer;
       display: flex;
@@ -162,64 +154,173 @@
       border-radius: 6px;
       -webkit-tap-highlight-color: transparent;
     }
-
     .btn-drawer-close:hover { background: var(--wini-bg); color: var(--midnight); }
 
-    .drawer-nav {
-      flex: 1;
-      padding: 12px 0;
-      overflow-y: auto;
-    }
-
-    .drawer-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 13px 20px;
-      font-size: 14px;
-      font-weight: 400;
-      color: var(--lilac);
-      cursor: default;
-      user-select: none;
-      border-radius: 0;
-      transition: background 0.1s;
-    }
-
-    .drawer-item.active {
-      color: var(--midnight);
-      font-weight: 500;
-      cursor: pointer;
-    }
-
-    .drawer-item.active:hover { background: var(--wini-bg); }
-
-    .drawer-item svg {
-      width: 18px;
-      height: 18px;
-      stroke: currentColor;
-      fill: none;
-      stroke-width: 1.7;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+    .drawer-new-chat-wrap {
+      padding: 12px 14px;
       flex-shrink: 0;
     }
-
-    .drawer-item-label { flex: 1; }
-
-    .drawer-badge {
-      font-size: 9px;
+    .btn-new-chat {
+      width: 100%;
+      padding: 10px 16px;
+      background: var(--slate);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
       font-weight: 500;
-      letter-spacing: 0.05em;
-      color: var(--lavender);
-      background: var(--border);
-      padding: 2px 6px;
-      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      -webkit-tap-highlight-color: transparent;
     }
+    .btn-new-chat:hover { opacity: 0.88; }
 
     .drawer-divider {
       height: 1px;
       background: var(--border);
-      margin: 8px 20px;
+      flex-shrink: 0;
+    }
+
+    .drawer-section-label {
+      padding: 10px 20px 6px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--lilac);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      flex-shrink: 0;
+    }
+
+    .drawer-conv-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .drawer-conv-list::-webkit-scrollbar { width: 0; }
+
+    .drawer-conv-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.1s;
+    }
+    .drawer-conv-item:hover { background: var(--wini-bg); }
+    .drawer-conv-item.active {
+      background: var(--wini-bg);
+      border-left-color: var(--slate);
+    }
+    .drawer-conv-item-title {
+      font-size: 14px;
+      color: var(--midnight);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .drawer-conv-item-date {
+      font-size: 11px;
+      color: var(--lilac);
+    }
+
+    .drawer-conv-empty {
+      padding: 16px 20px;
+      font-size: 13px;
+      color: var(--lavender);
+    }
+
+    .drawer-signin-prompt {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .drawer-signin-prompt p {
+      font-size: 13px;
+      color: var(--lilac);
+      line-height: 1.5;
+    }
+    .btn-drawer-signin {
+      height: 34px;
+      padding: 0 16px;
+      border-radius: 17px;
+      border: 1.5px solid var(--slate);
+      background: transparent;
+      color: var(--slate);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      align-self: flex-start;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-drawer-signin:hover { background: var(--slate); color: white; }
+
+    /* ── Drawer profile section ───────────────────────── */
+    .drawer-profile {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+    }
+    .drawer-profile-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .drawer-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--midnight);
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .drawer-profile-name {
+      font-size: 13px;
+      color: var(--midnight);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .drawer-profile-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .drawer-profile-link {
+      font-size: 13px;
+      color: var(--lilac);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .drawer-profile-link:hover { color: var(--midnight); }
+    .btn-drawer-signout {
+      font-size: 13px;
+      color: var(--lilac);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-drawer-signout:hover { color: var(--slate); }
+
+    /* ── Header left grouping ─────────────────────────── */
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     /* ── Chat area ────────────────────────────────────── */
@@ -726,71 +827,28 @@
 
   <!-- Left drawer -->
   <nav class="drawer" id="drawer" aria-label="Main menu">
-    <div class="drawer-top">
-      <div class="drawer-brand">
-        <div class="logo">Winederella</div>
-        <div class="tagline">your wine guide</div>
-      </div>
+    <div class="drawer-header">
+      <span class="drawer-title">Wini</span>
       <button class="btn-drawer-close" id="drawerClose" aria-label="Close menu">×</button>
     </div>
-    <div class="drawer-nav">
-      <div class="drawer-item active">
-        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span class="drawer-item-label">Chat</span>
-      </div>
-      <div class="drawer-divider"></div>
-      <div class="drawer-item">
-        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
-        <span class="drawer-item-label">Conversations</span>
-        <span class="drawer-badge">soon</span>
-      </div>
-      <div class="drawer-item">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        <span class="drawer-item-label">Tasting Notes</span>
-        <span class="drawer-badge">soon</span>
-      </div>
-      <div class="drawer-item">
-        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-        <span class="drawer-item-label">Cellar</span>
-        <span class="drawer-badge">soon</span>
-      </div>
-      <div class="drawer-item">
-        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span class="drawer-item-label">Profile</span>
-        <span class="drawer-badge">soon</span>
-      </div>
+    <div class="drawer-new-chat-wrap">
+      <button class="btn-new-chat" id="newChatBtn">+ New Chat</button>
     </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section-label">Conversations</div>
+    <div class="drawer-conv-list" id="drawerConvList"></div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-profile" id="drawerProfile"></div>
   </nav>
 
   <!-- Header -->
   <header class="header">
-    <div>
-      <div class="logo">Winederella</div>
-      <div class="tagline">your wine guide</div>
-    </div>
-    <div class="header-actions">
-      <!-- Login button — hidden when signed in -->
-      <button class="btn-login" id="loginBtn">Sign in</button>
-      <!-- Avatar + dropdown — hidden when signed out -->
-      <div class="user-menu" id="userMenu">
-        <button class="user-avatar-btn" id="userAvatarBtn" aria-label="Account menu">?</button>
-        <div class="user-dropdown" id="userDropdown">
-          <div class="dropdown-user-row">
-            <div class="dropdown-user-icon">
-              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <div class="dropdown-email" id="dropdownEmail">—</div>
-          </div>
-          <div class="dropdown-item danger" id="signOutItem">
-            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Log out
-          </div>
-        </div>
+    <div class="header-left">
+      <button class="btn-hamburger" id="menuBtn" aria-label="Open menu">☰</button>
+      <div>
+        <div class="logo">Winederella</div>
+        <div class="tagline">your wine guide</div>
       </div>
-      <!-- V2: remove display:none to activate the drawer menu -->
-      <button class="btn-menu" id="menuBtn" aria-label="Open menu" style="display:none">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </header>
 
@@ -1098,35 +1156,41 @@
       }
     }
 
-    async function appendToConversation(userContent, assistantText) {
-      // Called after each exchange when the user is logged in
+    async function saveUserMessage(userContent) {
       if (!supabaseClient || !currentUser) return;
-
       try {
-        // Create conversation on first real message
         if (!currentConvId) {
           const raw = typeof userContent === 'string'
             ? userContent
             : userContent?.find?.(c => c.type === 'text')?.text || 'Conversation';
-          const title = raw.slice(0, 50);
-
           const { data: conv, error } = await supabaseClient
             .from('conversations')
-            .insert({ user_id: currentUser.id, title })
+            .insert({ user_id: currentUser.id, title: raw.slice(0, 50) })
             .select()
             .single();
-
           if (error) throw error;
           currentConvId = conv.id;
         }
-
-        await supabaseClient.from('messages').insert([
-          { conversation_id: currentConvId, role: 'user',
-            content: typeof userContent === 'string' ? userContent : JSON.stringify(userContent) },
-          { conversation_id: currentConvId, role: 'assistant', content: assistantText },
-        ]);
+        await supabaseClient.from('messages').insert({
+          conversation_id: currentConvId,
+          role: 'user',
+          content: typeof userContent === 'string' ? userContent : JSON.stringify(userContent),
+        });
       } catch (err) {
-        console.error('Failed to append messages:', err.message);
+        console.error('Failed to save user message:', err.message);
+      }
+    }
+
+    async function saveAssistantMessage(assistantText) {
+      if (!supabaseClient || !currentUser || !currentConvId) return;
+      try {
+        await supabaseClient.from('messages').insert({
+          conversation_id: currentConvId,
+          role: 'assistant',
+          content: assistantText,
+        });
+      } catch (err) {
+        console.error('Failed to save assistant message:', err.message);
       }
     }
 
@@ -1158,6 +1222,7 @@
       drawer.classList.add('open');
       drawerOverlay.classList.add('open');
       document.body.style.overflow = 'hidden';
+      refreshDrawer();
     }
 
     function closeDrawer() {
@@ -1169,6 +1234,158 @@
     menuBtn.addEventListener('click', openDrawer);
     drawerClose.addEventListener('click', closeDrawer);
     drawerOverlay.addEventListener('click', closeDrawer);
+
+    document.getElementById('newChatBtn').addEventListener('click', startNewChat);
+
+    // ── Drawer: refresh both panels ────────────────────────────────────────────
+
+    function refreshDrawer() {
+      renderDrawerProfile();
+      loadConversations();
+    }
+
+    // ── Drawer: profile section ────────────────────────────────────────────────
+
+    function renderDrawerProfile() {
+      const el = document.getElementById('drawerProfile');
+      if (!el) return;
+
+      if (currentUser) {
+        const name = currentUser.user_metadata?.full_name || currentUser.email || '';
+        const initial = (name[0] || '?').toUpperCase();
+        el.innerHTML = `
+          <div class="drawer-profile-user">
+            <div class="drawer-avatar">${initial}</div>
+            <div class="drawer-profile-name">${escHtml(name)}</div>
+          </div>
+          <div class="drawer-profile-actions">
+            <a class="drawer-profile-link">My profile</a>
+            <button class="btn-drawer-signout" id="drawerSignOutBtn">Sign out</button>
+          </div>`;
+        document.getElementById('drawerSignOutBtn').addEventListener('click', async () => {
+          if (supabaseClient) await supabaseClient.auth.signOut();
+          closeDrawer();
+        });
+      } else {
+        el.innerHTML = `
+          <button class="btn-drawer-signin" id="drawerSignInBtn">Sign in</button>`;
+        document.getElementById('drawerSignInBtn').addEventListener('click', () => {
+          closeDrawer();
+          showModal();
+        });
+      }
+    }
+
+    // ── Drawer: conversation list ──────────────────────────────────────────────
+
+    async function loadConversations() {
+      const el = document.getElementById('drawerConvList');
+      if (!el) return;
+
+      if (!currentUser || !supabaseClient) {
+        el.innerHTML = `
+          <div class="drawer-signin-prompt">
+            <p>Sign in to save and revisit your conversations.</p>
+            <button class="btn-drawer-signin" id="drawerSignInBtn2">Sign in</button>
+          </div>`;
+        document.getElementById('drawerSignInBtn2')?.addEventListener('click', () => {
+          closeDrawer();
+          showModal();
+        });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('conversations')
+          .select('id, title, created_at')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          el.innerHTML = `<div class="drawer-conv-empty">Your conversations will appear here.</div>`;
+          return;
+        }
+
+        el.innerHTML = data.map(conv => `
+          <div class="drawer-conv-item${conv.id === currentConvId ? ' active' : ''}"
+               data-id="${conv.id}">
+            <div class="drawer-conv-item-title">${escHtml((conv.title || 'Conversation').slice(0, 40))}</div>
+            <div class="drawer-conv-item-date">${relativeDate(conv.created_at)}</div>
+          </div>`).join('');
+
+        el.querySelectorAll('.drawer-conv-item').forEach(item => {
+          item.addEventListener('click', () => loadConversation(item.dataset.id));
+        });
+      } catch (err) {
+        console.error('Failed to load conversations:', err.message);
+        el.innerHTML = `<div class="drawer-conv-empty">Couldn't load conversations.</div>`;
+      }
+    }
+
+    // ── Drawer: load a past conversation ──────────────────────────────────────
+
+    async function loadConversation(convId) {
+      if (!supabaseClient || !currentUser) return;
+      closeDrawer();
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('messages')
+          .select('role, content')
+          .eq('conversation_id', convId)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        // Clear current chat
+        chat.innerHTML = '';
+        session.messages = [];
+        currentConvId = convId;
+
+        for (const msg of data) {
+          if (msg.role === 'user') {
+            appendMessage('user', msg.content);
+          } else {
+            appendMessage('wini', msg.content);
+          }
+          session.messages.push({ role: msg.role, content: msg.content });
+        }
+        scrollBottom();
+      } catch (err) {
+        console.error('Failed to load conversation:', err.message);
+      }
+    }
+
+    // ── Drawer: new chat ───────────────────────────────────────────────────────
+
+    async function startNewChat() {
+      closeDrawer();
+      chat.innerHTML = '';
+      session.messages = [];
+      currentConvId = null;
+      winiResponseCount = 0;
+      nudgeShown = false;
+      await init();
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function relativeDate(iso) {
+      const d = new Date(iso);
+      const now = new Date();
+      const diffDays = Math.floor((now - d) / 86400000);
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
 
     // Close drawer or modal on Escape
     document.addEventListener('keydown', (e) => {
@@ -1411,6 +1628,12 @@
       imgPreview.style.display = 'none';
       previewSrc.src = '';
 
+      // Save user message immediately (fire-and-forget, never blocks chat)
+      saveUserMessage(
+        contentBlocks.length === 1 && contentBlocks[0].type === 'text'
+          ? text : contentBlocks
+      );
+
       isLoading = true;
       setDisabled(true);
       addTyping();
@@ -1436,12 +1659,8 @@
         appendMessage('wini', replyText);
         session.messages.push({ role: 'assistant', content: replyText });
 
-        // Save to Supabase if logged in
-        await appendToConversation(
-          contentBlocks.length === 1 && contentBlocks[0].type === 'text'
-            ? text : contentBlocks,
-          replyText
-        );
+        // Save assistant message once fully received
+        saveAssistantMessage(replyText);
 
         // Save nudge — show after 3rd real response if not logged in
         winiResponseCount++;
