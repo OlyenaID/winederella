@@ -818,6 +818,360 @@
     .nudge-btn:hover { opacity: 0.8; }
     .nudge-btn.primary { background: var(--slate); color: white; border: none; }
     .nudge-btn.secondary { background: transparent; color: var(--lilac); border: 1px solid var(--border); }
+
+    /* ── Profile overlay backdrop ─────────────────────── */
+    .profile-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(42, 36, 64, 0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .profile-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ── Profile overlay panel ────────────────────────── */
+    .profile-panel {
+      background: var(--bg);
+      border-radius: 16px;
+      box-shadow: 0 8px 48px rgba(42, 36, 64, 0.2);
+      width: 100%;
+      max-width: 680px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateY(12px);
+      transition: transform 0.2s ease;
+    }
+    .profile-backdrop.open .profile-panel { transform: translateY(0); }
+
+    .profile-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .profile-panel-title {
+      font-size: 16px;
+      font-weight: 300;
+      color: var(--midnight);
+      letter-spacing: 0.02em;
+    }
+    .profile-panel-close {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--lilac);
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .profile-panel-close:hover { background: var(--wini-bg); color: var(--midnight); }
+
+    .profile-panel-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar nav (desktop) ────────────────────────── */
+    .profile-sidenav {
+      width: 200px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+    }
+    .profile-sidenav-item {
+      padding: 12px 20px;
+      font-size: 14px;
+      color: var(--lilac);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: color 0.1s, background 0.1s;
+      user-select: none;
+    }
+    .profile-sidenav-item:hover { background: var(--wini-bg); }
+    .profile-sidenav-item.active {
+      color: var(--slate);
+      border-left-color: var(--slate);
+      font-weight: 500;
+    }
+
+    /* ── Content pane ─────────────────────────────────── */
+    .profile-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 28px 36px;
+    }
+    .profile-content::-webkit-scrollbar { width: 0; }
+
+    .profile-section { display: none; }
+    .profile-section.active { display: block; }
+
+    /* ── Mobile: tab bar ──────────────────────────────── */
+    @media (max-width: 768px) {
+      .profile-backdrop { padding: 0; align-items: stretch; }
+      .profile-panel {
+        border-radius: 0;
+        max-width: 100%;
+        max-height: 100%;
+        height: 100%;
+      }
+      .profile-panel-body { flex-direction: column; }
+      .profile-sidenav {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 0;
+        flex-shrink: 0;
+      }
+      .profile-sidenav::-webkit-scrollbar { height: 0; }
+      .profile-sidenav-item {
+        white-space: nowrap;
+        border-left: none;
+        border-bottom: 2px solid transparent;
+        flex-shrink: 0;
+      }
+      .profile-sidenav-item.active {
+        border-left-color: transparent;
+        border-bottom-color: var(--slate);
+      }
+      .profile-content { padding: 20px 16px 32px; }
+    }
+
+    /* ── Profile details fields ───────────────────────── */
+    .profile-avatar-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+    .profile-avatar-lg {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--midnight);
+      color: white;
+      font-size: 22px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .profile-field { margin-bottom: 18px; }
+    .profile-field-label {
+      display: block;
+      font-size: 12px;
+      color: var(--lilac);
+      font-weight: 400;
+      margin-bottom: 6px;
+    }
+    .profile-field-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--midnight);
+      background: white;
+      outline: none;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    .profile-field-input:focus { border-color: var(--slate); }
+    .profile-field-input[readonly] {
+      background: var(--bg);
+      color: var(--lilac);
+      cursor: default;
+    }
+    .profile-member-since {
+      font-size: 12px;
+      color: var(--lavender);
+      margin-top: 4px;
+    }
+    .btn-save-profile {
+      padding: 11px 24px;
+      background: var(--slate);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-top: 8px;
+    }
+    .btn-save-profile:hover { opacity: 0.88; }
+    .btn-save-profile:disabled { opacity: 0.5; cursor: default; }
+    @media (max-width: 768px) { .btn-save-profile { width: 100%; } }
+    .profile-save-msg {
+      font-size: 13px;
+      color: var(--slate);
+      margin-top: 10px;
+      height: 18px;
+      transition: opacity 0.4s;
+    }
+    .profile-save-msg.hidden { opacity: 0; }
+
+    /* Danger zone */
+    .profile-danger-zone {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-delete-account {
+      font-size: 13px;
+      color: #b03030;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      padding: 0;
+      opacity: 0.7;
+    }
+    .btn-delete-account:hover { opacity: 1; }
+    .profile-delete-confirm {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--lilac);
+      line-height: 1.6;
+    }
+    .profile-delete-confirm p { margin-bottom: 14px; }
+    .profile-delete-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-confirm-delete {
+      padding: 8px 18px;
+      background: #b03030;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-cancel-delete {
+      padding: 8px 18px;
+      background: transparent;
+      color: var(--lilac);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* ── Palate section ───────────────────────────────── */
+    .palate-empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      font-size: 14px;
+      color: var(--lilac);
+      line-height: 1.8;
+    }
+    .palate-card { margin-bottom: 28px; }
+    .palate-card-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--lilac);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .palate-pills { display: flex; flex-wrap: wrap; gap: 10px; }
+    .palate-pill-wrap { display: flex; flex-direction: column; gap: 3px; }
+    .palate-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--wini-bg);
+      color: var(--midnight);
+      padding: 6px 10px 6px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+    }
+    .palate-pill-x {
+      background: none;
+      border: none;
+      color: var(--lavender);
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .palate-pill-x:hover { color: #b03030; }
+    .palate-pill-context {
+      font-size: 11px;
+      color: var(--lilac);
+      padding-left: 4px;
+    }
+    .palate-card-empty {
+      font-size: 13px;
+      color: var(--lavender);
+      font-style: italic;
+    }
+    .palate-footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .palate-footer-note {
+      font-size: 12px;
+      color: var(--lilac);
+      font-style: italic;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .btn-clear-palate {
+      font-size: 13px;
+      color: #b03030;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      padding: 0;
+      opacity: 0.7;
+    }
+    .btn-clear-palate:hover { opacity: 1; }
+    .palate-clear-confirm {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--lilac);
+      line-height: 1.6;
+    }
+    .palate-clear-confirm p { margin-bottom: 12px; }
+    .palate-clear-btns { display: flex; gap: 8px; }
   </style>
 </head>
 <body>
@@ -876,6 +1230,26 @@
 
       <div class="modal-toggle">
         <span id="authToggleText">Don't have an account?</span>&nbsp;<a id="authToggleLink">Sign up</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile overlay -->
+  <div class="profile-backdrop" id="profileBackdrop">
+    <div class="profile-panel">
+      <div class="profile-panel-header">
+        <span class="profile-panel-title">My profile</span>
+        <button class="profile-panel-close" id="profileClose" aria-label="Close">×</button>
+      </div>
+      <div class="profile-panel-body">
+        <nav class="profile-sidenav" id="profileSidenav">
+          <div class="profile-sidenav-item active" data-section="details">Profile details</div>
+          <div class="profile-sidenav-item"         data-section="palate">Your palate</div>
+        </nav>
+        <div class="profile-content" id="profileContent">
+          <div class="profile-section active" id="section-details"></div>
+          <div class="profile-section"        id="section-palate"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1237,6 +1611,10 @@
         document.getElementById('drawerSignOutBtn').addEventListener('click', async () => {
           if (supabaseClient) await supabaseClient.auth.signOut();
           closeDrawer();
+        });
+        el.querySelector('.drawer-profile-link').addEventListener('click', () => {
+          closeDrawer();
+          openProfileOverlay();
         });
       } else {
         el.innerHTML = `
@@ -1732,6 +2110,319 @@
         setDisabled(false);
         updateSendBtn();
         msgInput.focus();
+      }
+    }
+
+    // ── Profile overlay ────────────────────────────────────────────────────────
+
+    function openProfileOverlay() {
+      if (!currentUser) { showModal(); return; }
+      document.getElementById('profileBackdrop').classList.add('open');
+      switchProfileSection('details');
+      renderProfileDetails();
+      renderPalateSection();
+    }
+
+    function closeProfileOverlay() {
+      document.getElementById('profileBackdrop').classList.remove('open');
+    }
+
+    document.getElementById('profileClose').addEventListener('click', closeProfileOverlay);
+
+    function switchProfileSection(name) {
+      document.querySelectorAll('.profile-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.profile-sidenav-item').forEach(i => {
+        i.classList.toggle('active', i.dataset.section === name);
+      });
+      document.getElementById('section-' + name).classList.add('active');
+    }
+
+    document.querySelectorAll('.profile-sidenav-item').forEach(item => {
+      item.addEventListener('click', () => switchProfileSection(item.dataset.section));
+    });
+
+    // ── Profile details section ────────────────────────────────────────────────
+
+    async function renderProfileDetails() {
+      const el = document.getElementById('section-details');
+      if (!el || !currentUser) return;
+
+      const email      = currentUser.email || '';
+      const metaName   = currentUser.user_metadata?.full_name || '';
+      const firstLogin = currentUser.created_at
+        ? new Date(currentUser.created_at).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+        : '';
+
+      // Fetch or seed profiles row
+      let displayName = metaName;
+      let nickname    = metaName.split(' ')[0] || '';
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('profiles')
+          .select('display_name, nickname')
+          .eq('user_id', currentUser.id)
+          .single();
+
+        if (error && error.code === 'PGRST116') {
+          // Row doesn't exist yet — create it
+          await supabaseClient.from('profiles').insert({
+            user_id:      currentUser.id,
+            display_name: displayName,
+            nickname,
+          });
+        } else if (!error && data) {
+          displayName = data.display_name ?? displayName;
+          nickname    = data.nickname    ?? nickname;
+        }
+      } catch (err) {
+        console.warn('profiles fetch failed:', err.message);
+      }
+
+      const initial = (displayName[0] || email[0] || '?').toUpperCase();
+
+      el.innerHTML = `
+        <div class="profile-avatar-row">
+          <div class="profile-avatar-lg">${initial}</div>
+        </div>
+        <div class="profile-field">
+          <label class="profile-field-label" for="pd-name">Full name</label>
+          <input class="profile-field-input" id="pd-name" type="text"
+                 value="${escHtml(displayName)}" autocomplete="name">
+        </div>
+        <div class="profile-field">
+          <label class="profile-field-label" for="pd-nick">What should Wini call you?</label>
+          <input class="profile-field-input" id="pd-nick" type="text"
+                 value="${escHtml(nickname)}" autocomplete="nickname">
+        </div>
+        <div class="profile-field">
+          <label class="profile-field-label">Email</label>
+          <input class="profile-field-input" type="email"
+                 value="${escHtml(email)}" readonly>
+        </div>
+        <div class="profile-field">
+          <label class="profile-field-label">Member since</label>
+          <div class="profile-member-since">Member since ${firstLogin}</div>
+        </div>
+        <button class="btn-save-profile" id="btnSaveProfile">Save changes</button>
+        <div class="profile-save-msg hidden" id="profileSaveMsg">Changes saved</div>
+
+        <div class="profile-danger-zone">
+          <button class="btn-delete-account" id="btnDeleteAccount">Delete account</button>
+          <div class="profile-delete-confirm" id="deleteConfirmBox" style="display:none">
+            <p>This will permanently delete your account and all your data. This can't be undone.</p>
+            <div class="profile-delete-btns">
+              <button class="btn-confirm-delete" id="btnConfirmDelete">Yes, delete everything</button>
+              <button class="btn-cancel-delete"  id="btnCancelDelete">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('btnSaveProfile').addEventListener('click', saveProfileDetails);
+      document.getElementById('btnDeleteAccount').addEventListener('click', () => {
+        document.getElementById('deleteConfirmBox').style.display = 'block';
+        document.getElementById('btnDeleteAccount').style.display = 'none';
+      });
+      document.getElementById('btnCancelDelete').addEventListener('click', () => {
+        document.getElementById('deleteConfirmBox').style.display = 'none';
+        document.getElementById('btnDeleteAccount').style.display = '';
+      });
+      document.getElementById('btnConfirmDelete').addEventListener('click', deleteAccount);
+    }
+
+    async function saveProfileDetails() {
+      if (!supabaseClient || !currentUser) return;
+      const btn         = document.getElementById('btnSaveProfile');
+      const displayName = document.getElementById('pd-name').value.trim();
+      const nickname    = document.getElementById('pd-nick').value.trim();
+      const msgEl       = document.getElementById('profileSaveMsg');
+
+      btn.disabled = true;
+      try {
+        const { error } = await supabaseClient
+          .from('profiles')
+          .upsert({ user_id: currentUser.id, display_name: displayName, nickname },
+                  { onConflict: 'user_id' });
+        if (error) throw error;
+
+        // Update drawer avatar name
+        const nameEl = document.querySelector('.drawer-profile-name');
+        if (nameEl) nameEl.textContent = displayName;
+        const avatarEl = document.querySelector('.drawer-avatar');
+        if (avatarEl) avatarEl.textContent = (displayName[0] || '?').toUpperCase();
+
+        msgEl.classList.remove('hidden');
+        setTimeout(() => msgEl.classList.add('hidden'), 2000);
+      } catch (err) {
+        console.error('save profile failed:', err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function deleteAccount() {
+      if (!currentUser) return;
+      const btn = document.getElementById('btnConfirmDelete');
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
+      try {
+        const res = await fetch('/api/delete-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+        if (!res.ok) throw new Error('Delete failed');
+        if (supabaseClient) await supabaseClient.auth.signOut();
+        closeProfileOverlay();
+        chat.innerHTML = '';
+        session.messages = [];
+        currentConvId = null;
+        currentUser = null;
+      } catch (err) {
+        console.error('delete account failed:', err.message);
+        btn.disabled = false;
+        btn.textContent = 'Yes, delete everything';
+      }
+    }
+
+    // ── Your palate section ────────────────────────────────────────────────────
+
+    const PALATE_CARDS = [
+      { field: 'styles',           label: 'Styles',              key: 'style'   },
+      { field: 'grapes_loved',     label: 'Grapes you love',     key: 'grape'   },
+      { field: 'grapes_disliked',  label: 'Grapes you dislike',  key: 'grape'   },
+      { field: 'regions_loved',    label: 'Regions you love',    key: 'region'  },
+      { field: 'regions_disliked', label: 'Regions you dislike', key: 'region'  },
+      { field: 'budget',           label: 'Budget ranges',       key: 'budget'  },
+      { field: 'dislikes',         label: 'Dislikes',            key: 'dislike' },
+    ];
+
+    async function renderPalateSection() {
+      const el = document.getElementById('section-palate');
+      if (!el || !supabaseClient || !currentUser) return;
+
+      try {
+        const { data } = await supabaseClient
+          .from('palate_profile')
+          .select('profile')
+          .eq('user_id', currentUser.id)
+          .single();
+
+        const profile = data?.profile || {};
+        const hasAny  = PALATE_CARDS.some(c => (profile[c.field] || []).length > 0);
+
+        if (!hasAny) {
+          el.innerHTML = `
+            <div class="palate-empty-state">
+              Wini will build your palate profile as you chat.<br>
+              The more you talk, the better she knows your taste.
+            </div>`;
+          return;
+        }
+
+        const cardsHtml = PALATE_CARDS.map(({ field, label, key }) => {
+          const items = profile[field] || [];
+          const pillsHtml = items.length === 0
+            ? `<span class="palate-card-empty">Nothing here yet — just keep chatting with Wini</span>`
+            : `<div class="palate-pills">${items.map((item, idx) => {
+                const text = key === 'budget'
+                  ? `AUD ${item.min}${item.max ? '–' + item.max : '+'}`
+                  : escHtml(item[key] || '');
+                const ctx = item.context ? escHtml(item.context) : '';
+                return `<div class="palate-pill-wrap">
+                  <div class="palate-pill">
+                    ${text}
+                    <button class="palate-pill-x" data-field="${field}" data-idx="${idx}"
+                            aria-label="Remove">×</button>
+                  </div>
+                  ${ctx ? `<span class="palate-pill-context">${ctx}</span>` : ''}
+                </div>`;
+              }).join('')}</div>`;
+          return `<div class="palate-card" data-field="${field}">
+            <div class="palate-card-label">${label}</div>
+            ${pillsHtml}
+          </div>`;
+        }).join('');
+
+        el.innerHTML = `
+          ${cardsHtml}
+          <div class="palate-footer">
+            <p class="palate-footer-note">
+              You can also just tell Wini what to change — try "remove Grenache from my preferences"
+              or "update my budget to $50".
+            </p>
+            <button class="btn-clear-palate" id="btnClearPalate">Clear entire palate profile</button>
+            <div class="palate-clear-confirm" id="palateClearConfirm" style="display:none">
+              <p>This will remove all your wine preferences. Are you sure?</p>
+              <div class="palate-clear-btns">
+                <button class="btn-confirm-delete" id="btnConfirmClear">Yes, clear it</button>
+                <button class="btn-cancel-delete"  id="btnCancelClear">Cancel</button>
+              </div>
+            </div>
+          </div>`;
+
+        // Delete individual pill
+        el.querySelectorAll('.palate-pill-x').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const { field, idx } = btn.dataset;
+            await deletePalateItem(field, parseInt(idx));
+          });
+        });
+
+        document.getElementById('btnClearPalate').addEventListener('click', () => {
+          document.getElementById('palateClearConfirm').style.display = 'block';
+          document.getElementById('btnClearPalate').style.display = 'none';
+        });
+        document.getElementById('btnCancelClear').addEventListener('click', () => {
+          document.getElementById('palateClearConfirm').style.display = 'none';
+          document.getElementById('btnClearPalate').style.display = '';
+        });
+        document.getElementById('btnConfirmClear').addEventListener('click', clearPalate);
+
+      } catch (err) {
+        console.error('palate render failed:', err.message);
+        el.innerHTML = `<div class="palate-empty-state">Couldn't load palate data.</div>`;
+      }
+    }
+
+    async function deletePalateItem(field, idx) {
+      if (!supabaseClient || !currentUser) return;
+      try {
+        const { data } = await supabaseClient
+          .from('palate_profile')
+          .select('profile')
+          .eq('user_id', currentUser.id)
+          .single();
+
+        const profile = data?.profile || {};
+        const arr = [...(profile[field] || [])];
+        arr.splice(idx, 1);
+        profile[field] = arr;
+
+        await supabaseClient
+          .from('palate_profile')
+          .upsert({ user_id: currentUser.id, profile, updated_at: new Date().toISOString() },
+                  { onConflict: 'user_id' });
+
+        await renderPalateSection(); // re-render
+      } catch (err) {
+        console.error('delete palate item failed:', err.message);
+      }
+    }
+
+    async function clearPalate() {
+      if (!supabaseClient || !currentUser) return;
+      const btn = document.getElementById('btnConfirmClear');
+      btn.disabled = true;
+      try {
+        await supabaseClient
+          .from('palate_profile')
+          .upsert({ user_id: currentUser.id, profile: {}, updated_at: new Date().toISOString() },
+                  { onConflict: 'user_id' });
+        await renderPalateSection();
+      } catch (err) {
+        console.error('clear palate failed:', err.message);
+        if (btn) btn.disabled = false;
       }
     }
 
