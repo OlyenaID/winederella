@@ -59,10 +59,15 @@
 
     /* ── Logo ─────────────────────────────────────────── */
     .logo-block { display: flex; flex-direction: column; gap: 2px; }
-    .logo-img {
-      width: 32px;
-      height: auto;
-      display: block;
+    .logo-top { display: flex; align-items: center; gap: 5px; }
+    .logo-img { width: 28px; height: auto; display: block; }
+    .logo-wordmark {
+      font-family: Georgia, serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--magenta);
+      line-height: 1;
     }
     .logo-subhead {
       font-family: 'DM Sans', sans-serif;
@@ -632,7 +637,10 @@
         </svg>
       </button>
       <div class="logo-block">
-        <img src="/wini-logo-small.png" alt="Wini" class="logo-img">
+        <div class="logo-top">
+          <img src="/wini-logo-small.png" alt="W" class="logo-img">
+          <div class="logo-wordmark">Wini</div>
+        </div>
         <div class="logo-subhead">Winederella wine concierge</div>
       </div>
     </div>
