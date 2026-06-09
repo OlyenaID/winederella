@@ -1,4 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const { createClient } = require('@supabase/supabase-js');
 
 const SYSTEM_PROMPT = `You are Wini, short for Winederella — a wine guide for Australian home cooks, party hosts, and everyday wine lovers.
 
@@ -137,18 +138,90 @@ You default to Australian wines first — you know the regions intimately (Baros
 
 After your 3rd or 4th response in a conversation, if the chat has real substance (more than a one-liner exchange), naturally suggest saving the user's preferences — weave it casually into the end of your response. Keep it in Wini's voice: brief, not salesy, never formulaic. Vary the phrasing every time. Examples: "Worth saving this if you're going to keep cooking like this." / "I could remember your taste for next time if that's useful." / "Want me to keep track of what's working for you?" / "If you want, I can hold onto these preferences for next time." Only do this once per conversation, and only if it genuinely fits the moment.`;
 
+// ── Profile injection ──────────────────────────────────────────────────────────
+
+function formatProfileInjection(profile, recentRecs) {
+  const lines = [];
+
+  if (profile.styles?.length)
+    lines.push('Wine styles enjoyed: ' +
+      profile.styles.map(s => `${s.style} (${s.context})`).join(', '));
+
+  if (profile.grapes_loved?.length)
+    lines.push('Grapes loved: ' +
+      profile.grapes_loved.map(g => `${g.grape} (${g.context})`).join(', '));
+
+  if (profile.grapes_disliked?.length)
+    lines.push('Grapes to avoid: ' +
+      profile.grapes_disliked.map(g => `${g.grape} (${g.context})`).join(', '));
+
+  if (profile.regions_loved?.length)
+    lines.push('Regions loved: ' +
+      profile.regions_loved.map(r => `${r.region} (${r.context})`).join(', '));
+
+  if (profile.regions_disliked?.length)
+    lines.push('Regions to avoid: ' +
+      profile.regions_disliked.map(r => `${r.region} (${r.context})`).join(', '));
+
+  if (profile.budget?.length)
+    lines.push('Budget: ' +
+      profile.budget.map(b => {
+        const range = b.max ? `$${b.min}–$${b.max}` : `around $${b.min}`;
+        return `${range} (${b.context})`;
+      }).join(', '));
+
+  if (profile.dislikes?.length)
+    lines.push('Dislikes: ' +
+      profile.dislikes.map(d => `${d.dislike} (${d.context})`).join(', '));
+
+  if (profile.bottle_shop)
+    lines.push(`Preferred bottle shop: ${profile.bottle_shop}`);
+
+  const hasProfile = lines.length > 0;
+  const hasRecs    = recentRecs && recentRecs.length > 0;
+  if (!hasProfile && !hasRecs) return null;
+
+  let block = '';
+  if (hasProfile) block += 'WHAT YOU KNOW ABOUT THIS USER:\n' + lines.join('\n');
+  if (hasRecs)    block += (hasProfile ? '\n\n' : '') +
+    'RECENT RECOMMENDATIONS THIS SESSION:\n' + recentRecs.join(', ') + '\nDo not repeat these unless specifically asked.';
+
+  block += '\n\nApply preferences contextually — match the occasion and situation the user describes now to the context stored against each preference.\nNever recite the profile back to the user.\nNever repeat a recent recommendation unprompted.';
+  return block;
+}
+
+// ── Handler ────────────────────────────────────────────────────────────────────
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages } = req.body;
+  const { messages, userId, recentRecommendations } = req.body;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
   }
 
-  // V2: add web_search tool here for live pricing and links to recommended wine pages
+  // ── Fetch palate profile (never blocks if it fails) ──────────────────────────
+  let systemPrompt = SYSTEM_PROMPT;
+  try {
+    if (userId && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      const { data } = await db
+        .from('palate_profile')
+        .select('profile')
+        .eq('user_id', userId)
+        .single();
+
+      if (data?.profile && Object.keys(data.profile).length > 0) {
+        const injection = formatProfileInjection(data.profile, recentRecommendations || []);
+        if (injection) systemPrompt = injection + '\n\n---\n\n' + SYSTEM_PROMPT;
+      }
+    }
+  } catch (err) {
+    console.warn('Palate profile fetch failed (non-fatal):', err.message);
+  }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -156,7 +229,7 @@ module.exports = async function handler(req, res) {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: messages && messages.length > 0 ? messages : [
         { role: 'user', content: 'Hi' }
       ],

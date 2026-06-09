@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/chat",   "destination": "/api/chat.js"   },
-    { "source": "/api/config", "destination": "/api/config.js" }
+    { "source": "/api/chat",           "destination": "/api/chat.js"           },
+    { "source": "/api/config",         "destination": "/api/config.js"         },
+    { "source": "/api/extract-palate", "destination": "/api/extract-palate.js" }
   ]
 }

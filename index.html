@@ -935,12 +935,14 @@
     let isLoading    = false;
 
     // ── Auth state ─────────────────────────────────────────────────────────────
-    let supabaseClient       = null;
-    let currentUser          = null;
-    let currentConvId        = null; // active conversation ID in Supabase
-    let winiResponseCount    = 0;    // counts real responses (not the greeting)
-    let nudgeShown           = false;
-    let authMode             = 'signin'; // 'signin' | 'signup'
+    let supabaseClient          = null;
+    let currentUser             = null;
+    let currentConvId           = null;  // active conversation ID in Supabase
+    let winiResponseCount       = 0;     // counts real responses (not the greeting)
+    let nudgeShown              = false;
+    let authMode                = 'signin'; // 'signin' | 'signup'
+    let recentRecommendations   = [];    // wine names mentioned this session (max 10)
+    const todayDate             = new Date().toISOString().split('T')[0];
 
     // ── Auth: Supabase init ────────────────────────────────────────────────────
 
@@ -1334,6 +1336,7 @@
       currentConvId = null;
       winiResponseCount = 0;
       nudgeShown = false;
+      recentRecommendations = [];
       await init();
     }
 
@@ -1350,6 +1353,18 @@
 
     function escHtml(str) {
       return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Extract wine names from Wini's response text (capitalised phrases after trigger words)
+    function extractWineNames(text) {
+      const wines = new Set();
+      const re = /(?:suggest|recommend|try)\s+(?:the\s+)?([A-Z][A-Za-z']+(?:\s+[A-Z][A-Za-z']+){0,4})/gi;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const name = m[1].trim();
+        if (name.length > 3) wines.add(name);
+      }
+      return [...wines];
     }
 
     // Close drawer or modal on Escape
@@ -1607,7 +1622,11 @@
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: session.messages }),
+          body: JSON.stringify({
+            messages: session.messages,
+            userId:   currentUser?.id || null,
+            recentRecommendations,
+          }),
         });
 
         removeTyping();
@@ -1617,7 +1636,6 @@
           throw new Error(errData.error || `Server error ${res.status}`);
         }
 
-        // V2: parse structured wine data for notes storage
         const data = await res.json();
         const replyText = data?.content?.[0]?.text ?? '';
 
@@ -1626,6 +1644,31 @@
 
         // Save assistant message once fully received
         saveAssistantMessage(replyText);
+
+        // Track wine names mentioned this session
+        const newWines = extractWineNames(replyText);
+        recentRecommendations = [...recentRecommendations, ...newWines].slice(-10);
+
+        // Background palate extraction — fire and forget, never blocks chat
+        if (currentUser) {
+          const userTextForExtraction = typeof text === 'string' && text
+            ? text
+            : (Array.isArray(contentBlocks)
+                ? (contentBlocks.find(c => c.type === 'text')?.text || '')
+                : '');
+          if (userTextForExtraction) {
+            fetch('/api/extract-palate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId:           currentUser.id,
+                userMessage:      userTextForExtraction,
+                assistantMessage: replyText,
+                todayDate,
+              }),
+            }).catch(err => console.warn('extract-palate failed (non-fatal):', err.message));
+          }
+        }
 
         // Save nudge — show after 3rd real response if not logged in
         winiResponseCount++;
@@ -1663,7 +1706,11 @@
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: session.messages }),
+          body: JSON.stringify({
+            messages: session.messages,
+            userId:   currentUser?.id || null,
+            recentRecommendations: [],
+          }),
         });
 
         removeTyping();
