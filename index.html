@@ -828,7 +828,6 @@
   <!-- Left drawer -->
   <nav class="drawer" id="drawer" aria-label="Main menu">
     <div class="drawer-header">
-      <span class="drawer-title">Wini</span>
       <button class="btn-drawer-close" id="drawerClose" aria-label="Close menu">×</button>
     </div>
     <div class="drawer-new-chat-wrap">
@@ -1257,12 +1256,7 @@
         el.innerHTML = `
           <div class="drawer-signin-prompt">
             <p>Sign in to save and revisit your conversations.</p>
-            <button class="btn-drawer-signin" id="drawerSignInBtn2">Sign in</button>
           </div>`;
-        document.getElementById('drawerSignInBtn2')?.addEventListener('click', () => {
-          closeDrawer();
-          showModal();
-        });
         return;
       }
 
