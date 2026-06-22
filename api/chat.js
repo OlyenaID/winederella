@@ -238,10 +238,14 @@ module.exports = async function handler(req, res) {
       ],
     });
 
-    // Filter to text blocks only — web search adds tool_use / web_search_tool_result /
-    // citation blocks the frontend doesn't handle; content[0].text reads would break.
-    const textOnly = response.content.filter(b => b.type === 'text');
-    return res.status(200).json({ ...response, content: textOnly });
+    // Concatenate all text blocks into one — web search splits the response across
+    // multiple text blocks (intro text → search → recommendations text) and the
+    // frontend only reads content[0].text, so joining them is required.
+    const combined = response.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+    return res.status(200).json({ ...response, content: [{ type: 'text', text: combined }] });
   } catch (err) {
     console.error('Anthropic API error:', err);
     return res.status(500).json({ error: err.message || 'API error' });
