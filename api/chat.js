@@ -228,14 +228,18 @@ module.exports = async function handler(req, res) {
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 2000,
       system: systemPrompt,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
       messages: messages && messages.length > 0 ? messages : [
         { role: 'user', content: 'Hi' }
       ],
     });
 
-    return res.status(200).json(response);
+    // Filter to text blocks only — web search adds tool_use / web_search_tool_result /
+    // citation blocks the frontend doesn't handle; content[0].text reads would break.
+    const textOnly = response.content.filter(b => b.type === 'text');
+    return res.status(200).json({ ...response, content: textOnly });
   } catch (err) {
     console.error('Anthropic API error:', err);
     return res.status(500).json({ error: err.message || 'API error' });
