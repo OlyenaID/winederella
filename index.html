@@ -289,6 +289,7 @@
       text-underline-offset: 3px;
     }
     .bubble.wini a:hover { color: var(--magenta); }
+    .bubble hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
 
     /* typing indicator */
     .typing { display: flex; align-items: center; gap: 5px; padding: 12px 14px; }
@@ -1221,11 +1222,22 @@
       for (let i = 0; i < lines.length; i++) {
         let line = lines[i];
 
+        // Horizontal rule
+        if (line.trim() === '---') {
+          if (inList) { html += `</${listTag}>`; inList = false; }
+          html += '<hr>';
+          continue;
+        }
+
         // Bold & italic
         line = line
           .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
           .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+        // Links [text](url)
+        line = line.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
         // Unordered list item
         const ulMatch = line.match(/^[-•]\s+(.*)/);
