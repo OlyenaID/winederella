@@ -99,12 +99,12 @@ module.exports = async function handler(req, res) {
   try {
     const db = supabase();
 
-    // Fetch current profile (may not exist yet)
+    // Fetch current profile (may not exist yet — maybeSingle returns null instead of throwing)
     const { data: row } = await db
       .from('palate_profile')
       .select('profile')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     const currentProfile = row?.profile || {};
 
@@ -144,6 +144,7 @@ module.exports = async function handler(req, res) {
         { onConflict: 'user_id' }
       );
 
+    console.log(`extract-palate: upserted profile for user ${userId}`);
     return res.status(200).end();
   } catch (err) {
     console.error('extract-palate error:', err.message);
