@@ -214,7 +214,7 @@ module.exports = async function handler(req, res) {
         .from('palate_profile')
         .select('profile')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (data?.profile && Object.keys(data.profile).length > 0) {
         const injection = formatProfileInjection(data.profile, recentRecommendations || []);
