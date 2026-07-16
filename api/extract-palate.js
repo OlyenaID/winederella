@@ -125,24 +125,38 @@ module.exports = async function handler(req, res) {
       }],
     });
 
-    const raw = msg.content[0]?.text?.trim() || '{}';
+    let raw = msg.content[0]?.text?.trim() || '{}';
+    // Strip markdown fences / surrounding prose — parse from first { to last }
+    const start = raw.indexOf('{');
+    const end   = raw.lastIndexOf('}');
+    if (start >= 0 && end > start) raw = raw.slice(start, end + 1);
+
     let extracted;
     try {
       extracted = JSON.parse(raw);
     } catch {
-      return res.status(200).end(); // model returned bad JSON — silent skip
+      console.error('extract-palate: model returned unparseable JSON:', raw.slice(0, 200));
+      return res.status(200).end();
     }
 
-    if (!extracted || Object.keys(extracted).length === 0) return res.status(200).end();
+    if (!extracted || Object.keys(extracted).length === 0) {
+      console.log(`extract-palate: nothing new extracted for user ${userId}`);
+      return res.status(200).end();
+    }
 
     const merged = mergeProfiles(currentProfile, extracted);
 
-    await db
+    const { error: upsertError } = await db
       .from('palate_profile')
       .upsert(
         { user_id: userId, profile: merged, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       );
+
+    if (upsertError) {
+      console.error('extract-palate: upsert failed:', upsertError.message);
+      return res.status(200).end();
+    }
 
     console.log(`extract-palate: upserted profile for user ${userId}`);
     return res.status(200).end();
