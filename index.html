@@ -465,6 +465,32 @@
     .modal-toggle { text-align: center; font-size: 13px; font-weight: 300; color: var(--wine-rose); margin-top: 14px; }
     .modal-toggle a { color: var(--magenta); cursor: pointer; font-weight: 400; text-decoration: none; }
 
+    /* ── Delete-account success overlay ──────────────── */
+    .delete-success-card {
+      background: var(--white); border-radius: 16px;
+      padding: 28px 24px; width: 100%; max-width: 340px;
+      text-align: center; position: relative;
+      transform: translateY(10px); transition: transform 0.2s ease;
+    }
+    .modal-backdrop.open .delete-success-card { transform: translateY(0); }
+    .delete-success-icon {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--petal-pink);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .delete-success-icon svg { width: 20px; height: 20px; stroke: var(--magenta); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .delete-success-title { font-size: 15px; font-weight: 500; color: var(--midnight); margin-bottom: 6px; }
+    .delete-success-body { font-size: 13px; font-weight: 300; color: var(--wine-rose); line-height: 1.6; margin-bottom: 22px; }
+    .btn-delete-success-close {
+      position: absolute; top: 12px; right: 12px;
+      width: 28px; height: 28px; border: none; background: transparent;
+      color: var(--dusty-clay); font-size: 18px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; border-radius: 6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-delete-success-close:hover { color: var(--wine-rose); }
+
     /* ── Nudge strip ──────────────────────────────────── */
     .nudge-strip { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px 36px; }
     .nudge-btn {
@@ -685,6 +711,19 @@
     </div>
   </div>
 
+  <!-- Account deleted overlay -->
+  <div class="modal-backdrop" id="deleteSuccessBackdrop" role="dialog" aria-modal="true" aria-label="Account deleted">
+    <div class="delete-success-card">
+      <button class="btn-delete-success-close" id="deleteSuccessClose" aria-label="Close">×</button>
+      <div class="delete-success-icon">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      </div>
+      <div class="delete-success-title">Your account has been deleted</div>
+      <div class="delete-success-body">All your saved conversations and preferences are gone too.</div>
+      <button class="btn-auth-submit" id="deleteSuccessStartChat">Start a new chat</button>
+    </div>
+  </div>
+
   <!-- Profile overlay -->
   <div class="profile-backdrop" id="profileBackdrop">
     <div class="profile-panel">
@@ -850,6 +889,23 @@
     document.getElementById('modalBackdrop').addEventListener('click', (e) => {
       if (e.target === document.getElementById('modalBackdrop')) hideModal();
     });
+
+    // ── Delete-account success overlay ─────────────────────────────────────────
+
+    function showDeleteSuccessOverlay() {
+      document.getElementById('deleteSuccessBackdrop').classList.add('open');
+    }
+
+    function dismissDeleteSuccessOverlay() {
+      document.getElementById('deleteSuccessBackdrop').classList.remove('open');
+      init(); // re-seed Wini's greeting now that the account is gone
+    }
+
+    document.getElementById('deleteSuccessBackdrop').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('deleteSuccessBackdrop')) dismissDeleteSuccessOverlay();
+    });
+    document.getElementById('deleteSuccessClose').addEventListener('click', dismissDeleteSuccessOverlay);
+    document.getElementById('deleteSuccessStartChat').addEventListener('click', dismissDeleteSuccessOverlay);
 
     document.getElementById('authToggleLink').addEventListener('click', () => {
       setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
@@ -1740,6 +1796,7 @@
         session.messages = [];
         currentConvId = null;
         currentUser = null;
+        showDeleteSuccessOverlay(); // seeding runs on dismiss, not immediately
       } catch (err) {
         console.error('delete account failed:', err.message);
         btn.disabled = false;
