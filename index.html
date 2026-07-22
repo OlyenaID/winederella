@@ -271,7 +271,10 @@
       border: 0.5px solid var(--linen-dark);
       border-radius: 12px 12px 2px 12px;
     }
-    .bubble img { display: block; max-width: 100%; border-radius: 8px; margin-bottom: 6px; }
+    .bubble img { display: block; border-radius: 8px; }
+    .bubble-img-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+    .bubble-img-wrap.single img { max-width: 100%; }
+    .bubble-img-wrap.multi img { max-width: 160px; max-height: 160px; width: auto; height: auto; }
 
     /* markdown */
     .bubble p { margin-bottom: 6px; }
@@ -313,15 +316,19 @@
       padding: 10px 12px;
       padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     }
-    .img-preview { display: none; margin-bottom: 8px; position: relative; width: fit-content; }
-    .img-preview img { height: 64px; width: auto; border-radius: 8px; border: 0.5px solid var(--linen-border); display: block; }
-    .img-preview-remove {
+    .img-preview { display: none; margin-bottom: 8px; gap: 6px; flex-wrap: wrap; }
+    .img-preview.show { display: flex; }
+    .img-thumb { position: relative; width: fit-content; }
+    .img-thumb img { height: 64px; width: auto; border-radius: 8px; border: 0.5px solid var(--linen-border); display: block; }
+    .img-thumb-remove {
       position: absolute; top: -6px; right: -6px;
       width: 18px; height: 18px; border-radius: 50%;
       background: var(--midnight); color: #fff; border: none;
       font-size: 12px; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center; padding: 0;
     }
+    .attach-warning { display: none; font-size: 11px; font-weight: 400; color: var(--dark-rose); margin-bottom: 6px; }
+    .attach-warning.show { display: block; }
     .input-row { display: flex; align-items: flex-end; gap: 8px; }
     .btn-attach {
       width: 34px; height: 34px; border-radius: 50%;
@@ -749,10 +756,8 @@
 
   <!-- Input -->
   <div class="input-area">
-    <div class="img-preview" id="imgPreview">
-      <img id="previewSrc" src="" alt="">
-      <button class="img-preview-remove" id="removeImg" aria-label="Remove image">×</button>
-    </div>
+    <div class="attach-warning" id="attachWarning"></div>
+    <div class="img-preview" id="imgPreview"></div>
     <div class="input-row">
       <button class="btn-attach" id="attachBtn" aria-label="Attach photo">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#C4A898" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -760,7 +765,7 @@
           <circle cx="12" cy="13" r="4"/>
         </svg>
       </button>
-      <input type="file" id="fileInput" accept="image/*" style="display:none">
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
       <div class="input-pill">
         <textarea id="msgInput" placeholder="Ask Wini anything…" rows="1" aria-label="Message"></textarea>
       </div>
@@ -788,15 +793,15 @@
     const attachBtn = document.getElementById('attachBtn');
     const fileInput = document.getElementById('fileInput');
     const imgPreview   = document.getElementById('imgPreview');
-    const previewSrc   = document.getElementById('previewSrc');
-    const removeImgBtn = document.getElementById('removeImg');
+    const attachWarningEl = document.getElementById('attachWarning');
     const menuBtn      = document.getElementById('menuBtn');
     const drawer       = document.getElementById('drawer');
     const drawerOverlay = document.getElementById('drawerOverlay');
     const drawerClose  = document.getElementById('drawerClose');
 
-    let pendingImage = null; // { base64, mediaType, dataUrl }
+    let pendingImages = []; // [{ base64, mediaType, dataUrl }]
     let isLoading    = false;
+    const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024; // safety margin under Vercel's 4.5MB body limit
 
     // ── Auth state ─────────────────────────────────────────────────────────────
     let supabaseClient          = null;
@@ -1331,16 +1336,16 @@
     function setDisabled(disabled) {
       msgInput.disabled   = disabled;
       attachBtn.disabled  = disabled;
-      sendBtn.disabled    = disabled || (!msgInput.value.trim() && !pendingImage);
+      sendBtn.disabled    = disabled || (!msgInput.value.trim() && !pendingImages.length);
     }
 
     function updateSendBtn() {
-      sendBtn.disabled = isLoading || (!msgInput.value.trim() && !pendingImage);
+      sendBtn.disabled = isLoading || (!msgInput.value.trim() && !pendingImages.length);
     }
 
     // ── Render messages ────────────────────────────────────────────────────────
 
-    function appendMessage(role, text, imageDataUrl) {
+    function appendMessage(role, text, imageDataUrls) {
       const row = document.createElement('div');
       row.className = `row ${role}`;
 
@@ -1355,11 +1360,17 @@
       const bubble = document.createElement('div');
       bubble.className = `bubble ${role}`;
 
-      if (imageDataUrl) {
-        const img = document.createElement('img');
-        img.src = imageDataUrl;
-        img.alt = 'Attached photo';
-        bubble.appendChild(img);
+      const urls = Array.isArray(imageDataUrls) ? imageDataUrls : (imageDataUrls ? [imageDataUrls] : []);
+      if (urls.length) {
+        const imgWrap = document.createElement('div');
+        imgWrap.className = `bubble-img-wrap ${urls.length === 1 ? 'single' : 'multi'}`;
+        urls.forEach((url, i) => {
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = urls.length > 1 ? `Attached photo ${i + 1}` : 'Attached photo';
+          imgWrap.appendChild(img);
+        });
+        bubble.appendChild(imgWrap);
       }
 
       if (text) {
@@ -1403,44 +1414,128 @@
 
     attachBtn.addEventListener('click', () => fileInput.click());
 
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          // Resize to max 1024px on longest side before encoding —
-          // prevents hitting Vercel's 4.5 MB body limit on real phone photos
-          const MAX = 1024;
-          let { width, height } = img;
-          if (width > MAX || height > MAX) {
-            if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
-            else                { width  = Math.round(width  * MAX / height); height = MAX; }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          const mediaType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-          const dataUrl   = canvas.toDataURL(mediaType, 0.85);
-          const base64    = dataUrl.split(',')[1];
-          pendingImage = { base64, mediaType, dataUrl };
-          previewSrc.src = dataUrl;
-          imgPreview.style.display = 'block';
-          updateSendBtn();
+    // Resize a single file to max 1024px on longest side before encoding —
+    // prevents hitting Vercel's 4.5 MB body limit on real phone photos
+    function resizeImageFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const MAX = 1024;
+            let { width, height } = img;
+            if (width > MAX || height > MAX) {
+              if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+              else                { width  = Math.round(width  * MAX / height); height = MAX; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            const mediaType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+            const dataUrl   = canvas.toDataURL(mediaType, 0.85);
+            const base64    = dataUrl.split(',')[1];
+            resolve({ base64, mediaType, dataUrl });
+          };
+          img.onerror = () => reject(new Error('Could not read image'));
+          img.src = ev.target.result;
         };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-      fileInput.value = '';
-    });
+        reader.onerror = () => reject(new Error('Could not read file'));
+        reader.readAsDataURL(file);
+      });
+    }
 
-    removeImgBtn.addEventListener('click', () => {
-      pendingImage = null;
-      imgPreview.style.display = 'none';
-      previewSrc.src = '';
+    fileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      fileInput.value = '';
+      if (!files.length) return;
+
+      for (const file of files) {
+        try {
+          pendingImages.push(await resizeImageFile(file));
+        } catch (err) {
+          console.warn('Failed to process image:', err.message);
+        }
+      }
+      renderImagePreviews();
       updateSendBtn();
     });
+
+    function renderImagePreviews() {
+      imgPreview.innerHTML = '';
+      if (!pendingImages.length) {
+        imgPreview.classList.remove('show');
+        checkAttachSize();
+        return;
+      }
+      imgPreview.classList.add('show');
+      pendingImages.forEach((imgData, idx) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'img-thumb';
+
+        const img = document.createElement('img');
+        img.src = imgData.dataUrl;
+        img.alt = `Attached photo ${idx + 1}`;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'img-thumb-remove';
+        removeBtn.setAttribute('aria-label', `Remove photo ${idx + 1}`);
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => {
+          pendingImages.splice(idx, 1);
+          renderImagePreviews();
+          updateSendBtn();
+        });
+
+        thumb.appendChild(img);
+        thumb.appendChild(removeBtn);
+        imgPreview.appendChild(thumb);
+      });
+      checkAttachSize();
+    }
+
+    // Estimates the full request body size (whole session history + this message) —
+    // Vercel's 4.5MB limit applies to the entire POST body, not just new attachments.
+    function estimatePayloadSize(newContentBlocks) {
+      const prospectiveMessages = session.messages.concat([{
+        role: 'user',
+        content: newContentBlocks.length === 1 && newContentBlocks[0].type === 'text'
+          ? newContentBlocks[0].text
+          : newContentBlocks,
+      }]);
+      const body = JSON.stringify({
+        messages: prospectiveMessages,
+        userId: currentUser?.id || null,
+        recentRecommendations,
+      });
+      return body.length; // base64/ASCII JSON — length is a close proxy for byte size
+    }
+
+    function checkAttachSize() {
+      if (!pendingImages.length) {
+        attachWarningEl.classList.remove('show');
+        attachWarningEl.textContent = '';
+        return;
+      }
+      const blocks = pendingImages.map(p => ({
+        type: 'image',
+        source: { type: 'base64', media_type: p.mediaType, data: p.base64 },
+      }));
+      const text = msgInput.value.trim();
+      if (text) blocks.push({ type: 'text', text });
+
+      const size = estimatePayloadSize(blocks);
+      const mb = (size / (1024 * 1024)).toFixed(1);
+      if (size > MAX_PAYLOAD_BYTES) {
+        attachWarningEl.textContent = `That's ${mb}MB — over the limit. Remove a photo before sending.`;
+        attachWarningEl.classList.add('show');
+      } else if (size > MAX_PAYLOAD_BYTES * 0.8) {
+        attachWarningEl.textContent = `Getting close to the size limit (${mb}MB).`;
+        attachWarningEl.classList.add('show');
+      } else {
+        attachWarningEl.classList.remove('show');
+        attachWarningEl.textContent = '';
+      }
+    }
 
     // ── Textarea auto-resize ───────────────────────────────────────────────────
 
@@ -1464,30 +1559,40 @@
     async function sendMessage() {
       if (isLoading) return;
       const text = msgInput.value.trim();
-      if (!text && !pendingImage) return;
+      if (!text && !pendingImages.length) return;
 
       // Build API content block
       const contentBlocks = [];
-      let displayImageUrl = null;
+      const displayImageUrls = [];
 
-      if (pendingImage) {
+      for (const imgData of pendingImages) {
         contentBlocks.push({
           type: 'image',
           source: {
             type: 'base64',
-            media_type: pendingImage.mediaType,
-            data: pendingImage.base64,
+            media_type: imgData.mediaType,
+            data: imgData.base64,
           },
         });
-        displayImageUrl = pendingImage.dataUrl;
+        displayImageUrls.push(imgData.dataUrl);
       }
 
       if (text) {
         contentBlocks.push({ type: 'text', text });
       }
 
+      // Hard stop before sending — Vercel's body limit applies to the whole
+      // request, including prior session history, not just these attachments
+      const estimatedSize = estimatePayloadSize(contentBlocks);
+      if (estimatedSize > MAX_PAYLOAD_BYTES) {
+        const mb = (estimatedSize / (1024 * 1024)).toFixed(1);
+        attachWarningEl.textContent = `That's ${mb}MB — too large to send. Remove a photo or two and try again.`;
+        attachWarningEl.classList.add('show');
+        return;
+      }
+
       // Render user message
-      appendMessage('user', text, displayImageUrl);
+      appendMessage('user', text, displayImageUrls);
 
       // Add to session history
       session.messages.push({
@@ -1500,9 +1605,8 @@
       // Reset input
       msgInput.value = '';
       msgInput.style.height = 'auto';
-      pendingImage = null;
-      imgPreview.style.display = 'none';
-      previewSrc.src = '';
+      pendingImages = [];
+      renderImagePreviews();
 
       // Save user message immediately (fire-and-forget, never blocks chat)
       saveUserMessage(
