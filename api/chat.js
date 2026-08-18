@@ -1,5 +1,8 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
+const { PostHog } = require('posthog-node');
+
+const POSTHOG_HOST = 'https://us.i.posthog.com';
 
 const SYSTEM_PROMPT = `You are Wini, short for Winederella — a wine guide for Australian home cooks, party hosts, and everyday wine lovers.
 
@@ -259,6 +262,9 @@ module.exports = async function handler(req, res) {
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const posthog = process.env.POSTHOG_KEY
+    ? new PostHog(process.env.POSTHOG_KEY, { host: POSTHOG_HOST })
+    : null;
 
   try {
     const requestOptions = {
@@ -298,6 +304,15 @@ module.exports = async function handler(req, res) {
     }
     combined = combined.trimEnd();
 
+    // Cost tracking — confirms the tool was actually invoked, not just offered
+    const usedWebSearch = !isGuest && response.content.some(
+      b => b.type === 'server_tool_use' || b.type === 'web_search_tool_result'
+    );
+    if (posthog && usedWebSearch) {
+      posthog.capture({ distinctId: userId, event: 'web_search_used' });
+    }
+    if (posthog) await posthog.shutdown();
+
     return res.status(200).json({
       ...response,
       content: [{ type: 'text', text: combined }],
@@ -306,6 +321,14 @@ module.exports = async function handler(req, res) {
     });
   } catch (err) {
     console.error('Anthropic API error:', err);
+    if (posthog) {
+      posthog.capture({
+        distinctId: userId || 'anonymous',
+        event: 'api_error',
+        properties: { message: err.message },
+      });
+      await posthog.shutdown();
+    }
     return res.status(500).json({ error: err.message || 'API error' });
   }
 };

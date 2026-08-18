@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/posthog-js@1/dist/array.full.js"></script>
   <style>
     /* ── Brand tokens ─────────────────────────────────── */
     :root {
@@ -811,6 +812,7 @@
     let winiResponseCount       = 0;     // counts real responses (not the greeting)
     let nudgeShown              = false;
     let guestCutoff             = false; // true once a guest hits the 12-exchange cap
+    let lastAuthGate            = null;  // which CTA (if any) opened the modal — for signup_completed attribution
     let authMode                = 'signin'; // 'signin' | 'signup'
     let recentRecommendations   = [];    // wine names mentioned this session (max 10)
     const todayDate             = new Date().toISOString().split('T')[0];
@@ -820,6 +822,13 @@
     async function initSupabase() {
       try {
         const cfg = await fetch('/api/config').then(r => r.json());
+
+        // PostHog init is independent of Supabase config — don't let a missing
+        // Supabase key below skip analytics, or vice versa
+        if (cfg.posthogKey && window.posthog) {
+          window.posthog.init(cfg.posthogKey, { api_host: 'https://us.i.posthog.com' });
+        }
+
         if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return;
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
@@ -841,6 +850,15 @@
             if (guestCutoff) {
               guestCutoff = false;
               setDisabled(false);
+            }
+            if (window.posthog) {
+              window.posthog.identify(currentUser.id, { email: currentUser.email });
+              // Not gated on event === 'SIGNED_IN' — Google OAuth redirects the whole
+              // page, so a fresh signup there only ever surfaces as INITIAL_SESSION
+              if (isNewSignIn && currentUser.created_at === currentUser.last_sign_in_at) {
+                window.posthog.capture('signup_completed', { gate: lastAuthGate || 'organic' });
+                lastAuthGate = null;
+              }
             }
             // Only save conversation on an explicit new sign-in, not every reload
             if (isNewSignIn && event === 'SIGNED_IN' && !currentConvId) {
@@ -1069,7 +1087,7 @@
 
     // ── Auth: guest value-moment prompts ───────────────────────────────────────
 
-    function appendAuthPrompt(buttonLabel, { message } = {}) {
+    function appendAuthPrompt(buttonLabel, { message, gate } = {}) {
       if (message) {
         const msgEl = document.createElement('div');
         msgEl.className = 'auth-prompt-message';
@@ -1083,11 +1101,17 @@
       const btn = document.createElement('button');
       btn.className   = 'nudge-btn primary';
       btn.textContent = buttonLabel;
-      btn.addEventListener('click', () => showModal());
+      btn.addEventListener('click', () => {
+        lastAuthGate = gate || null;
+        if (window.posthog) window.posthog.capture('auth_prompt_clicked', { gate });
+        showModal();
+      });
 
       strip.appendChild(btn);
       chat.appendChild(strip);
       scrollBottom();
+
+      if (window.posthog) window.posthog.capture('auth_prompt_shown', { gate });
     }
 
     // ── Drawer ─────────────────────────────────────────────────────────────────
@@ -1149,6 +1173,7 @@
           <button class="btn-drawer-signin" id="drawerSignInBtn">Sign in</button>`;
         document.getElementById('drawerSignInBtn').addEventListener('click', () => {
           closeDrawer();
+          lastAuthGate = null; // organic — not from a CTA
           showModal();
         });
       }
@@ -1277,6 +1302,12 @@
     // Close drawer or modal on Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { closeDrawer(); hideModal(); }
+    });
+
+    // Delegated so it covers every link Wini has ever rendered, no per-link wiring needed
+    chat.addEventListener('click', (e) => {
+      const link = e.target.closest('.bubble.wini a');
+      if (link && window.posthog) window.posthog.capture('bottle_link_clicked', { url: link.href });
     });
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1475,6 +1506,8 @@
       }
       renderImagePreviews();
       updateSendBtn();
+
+      if (window.posthog) window.posthog.capture('photo_uploaded', { count: files.length });
     });
 
     function renderImagePreviews() {
@@ -1611,6 +1644,13 @@
       // Render user message
       appendMessage('user', text, displayImageUrls);
 
+      if (window.posthog) {
+        window.posthog.capture('message_sent', {
+          guest: !currentUser,
+          hasImage: pendingImages.length > 0,
+        });
+      }
+
       // Add to session history
       session.messages.push({
         role: 'user',
@@ -1634,7 +1674,7 @@
       // Guest turn cap — checked client-side before every send; backend also
       // enforces this independently as defense in depth
       if (!currentUser && winiResponseCount >= 12) {
-        appendAuthPrompt('Keep chatting');
+        appendAuthPrompt('Keep chatting', { gate: 'cutoff' });
         guestCutoff = true;
         setDisabled(true);
         return;
@@ -1672,6 +1712,10 @@
         // Save assistant message once fully received
         saveAssistantMessage(replyText);
 
+        if (window.posthog && data.recommendationMade) {
+          window.posthog.capture('recommendation_shown');
+        }
+
         // Track wine names mentioned this session
         const newWines = extractWineNames(replyText);
         recentRecommendations = [...recentRecommendations, ...newWines].slice(-10);
@@ -1706,21 +1750,22 @@
           if (data.cutoff) {
             // Defense-in-depth: backend independently confirmed the cap, even
             // though the pre-flight check above should normally catch this first
-            appendAuthPrompt('Keep chatting');
+            appendAuthPrompt('Keep chatting', { gate: 'cutoff' });
             guestCutoff = true;
             setDisabled(true);
           } else if (data.linksGated && !nudgeShown && hasRec) {
             appendAuthPrompt('Get it all', {
               message: "Worth signing in for this one — I'll actually link the bottle, and remember what you liked for next time.",
+              gate: 'links',
             });
             nudgeShown = true;
           } else if (data.linksGated) {
-            appendAuthPrompt('Get the link');
+            appendAuthPrompt('Get the link', { gate: 'links' });
           } else if (!nudgeShown && hasRec) {
-            appendAuthPrompt('Save my palate');
+            appendAuthPrompt('Save my palate', { gate: 'save' });
             nudgeShown = true;
           } else if (!nudgeShown && winiResponseCount >= 3) {
-            appendAuthPrompt('Remember me');
+            appendAuthPrompt('Remember me', { gate: 'remember' });
             nudgeShown = true;
           }
         }
@@ -1787,7 +1832,7 @@
     // ── Profile overlay ────────────────────────────────────────────────────────
 
     function openProfileOverlay() {
-      if (!currentUser) { showModal(); return; }
+      if (!currentUser) { lastAuthGate = null; showModal(); return; } // organic — not from a CTA
       document.getElementById('profileBackdrop').classList.add('open');
       switchProfileSection('details');
       renderProfileDetails();
