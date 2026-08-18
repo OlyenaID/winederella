@@ -1,6 +1,6 @@
 # Winederella — Architecture & Feature Reference
 
-**Last updated:** 2026-07-16  
+**Last updated:** 2026-08-18  
 **Deployment:** Vercel (auto-deploys from GitHub `master`)  
 **Live URL:** https://winederella.vercel.app
 
@@ -122,13 +122,19 @@ Wini can search the web for real product pages, prices, and shop links when a us
 
 **File:** `index.html`
 
-Users can attach a photo via the camera icon in the input bar. Wini can read wine labels, wine lists, and menus.
+Users can attach one or more photos via the camera icon in the input bar. Wini can read wine labels, wine lists, and menus, and can reason across multiple photos in the same message — e.g. a label plus a wine list, or several bottles to compare. No per-message photo limit is enforced during closed beta.
 
 **How it works:**
-- Camera icon triggers a file input (`accept="image/*"`)
-- On selection, the image is drawn onto a hidden canvas and resized to max 1024px on the longest side at 85% JPEG quality — keeps payloads under Vercel's 4.5MB body limit
-- The base64-encoded image is appended to the message content array as `{ type: 'image', source: { type: 'base64', media_type, data } }`
-- Sent to `/api/chat` alongside the text message; Claude handles multimodal input natively
+- File input accepts multiple files (`accept="image/*" multiple`) — select several at once, or attach repeatedly before sending
+- Each file is run individually through the same resize pipeline: drawn onto a hidden canvas, resized to max 1024px on the longest side, encoded at 85% JPEG quality
+- Attached photos show as a row of thumbnails above the input bar, each with its own remove button, so nothing is sent unreviewed
+- Each image becomes its own `{ type: 'image', source: { type: 'base64', media_type, data } }` block; all image blocks plus the optional text block are appended to the same message content array
+- Sent to `/api/chat` alongside the text message; Claude handles multimodal input with any number of images natively — `api/chat.js` required no changes, since it passes the incoming `messages` array straight through with no assumption about content array length
+- The system prompt's `READING PHOTOS` section explicitly covers mixed photo types in one message: treat each on its own terms, then connect them if the connection is obvious (e.g. checking whether a bottle a user owns is on a wine list), without forcing a single verdict across unrelated images
+
+**Payload size safety check:** Vercel's request body limit is 4.5MB, and it applies to the *entire* POST body — including the full accumulated session history, not just the photos in the current message. Before sending, the frontend estimates the full prospective request body size (`estimatePayloadSize()`); a soft warning appears near the thumbnails as the estimate approaches the safety margin, and sending is hard-blocked with a clear message if it would exceed it, instead of failing with an opaque server error.
+
+**Bubble rendering:** message bubbles render one or more images inside a wrapping container. Single-photo messages keep their original full-width sizing (no regression); multi-photo messages use a capped thumbnail grid (`max-width: 160px` per image) so several photos don't blow out the bubble width.
 
 ---
 
@@ -217,14 +223,16 @@ Unique constraint on `user_id` (required for `upsert(..., { onConflict: 'user_id
 
 ### 7. Account Deletion
 
-**File:** `api/delete-account.js`
+**File:** `api/delete-account.js`, `index.html`
 
 Users can delete their account from the dropdown menu.
 
 **How it works:**
 - Frontend calls `/api/delete-account` with `{ userId }`
 - Backend uses Supabase admin API (`service_role` key) to delete the user from Supabase Auth
-- Cascade deletes handle associated `conversations`, `messages`, and `palate_profile` rows (configured in Supabase dashboard)
+- `conversations`, `palate_profile`, and `messages` foreign keys reference `auth.users` (directly, or transitively via `conversations`) with `ON DELETE CASCADE` — required for `deleteUser()` to succeed for any user with saved data. See Recently Resolved below.
+
+**Post-delete UX:** on success, the frontend clears chat/session state and shows a success overlay (checkmark, confirmation message, "Start a new chat" button) rather than leaving an empty, unseeded chat behind. Dismissing the overlay — via the button, the close icon, or a backdrop click — always calls `init()` afterward, the same seeding call used on normal boot, so Wini's opening greeting fires fresh.
 
 ---
 
@@ -285,6 +293,7 @@ Defined in `vercel.json`:
 
 - **Google OAuth `Unable to exchange external code`** — Supabase server-side token exchange failing intermittently. Likely cause: Google Client Secret mismatch or app in Testing mode in Google Console. Fix: regenerate Client Secret in Google Console and re-enter in Supabase Auth settings. Status unconfirmed — needs re-testing.
 - **Conversation loading** — UI for browsing and loading past saved conversations is not yet built. Persistence (save) works; retrieval UI is a future feature.
+- **Session hydration race in `boot()`** — `initSupabase()` registers the `onAuthStateChange` listener but returns without waiting for its first callback to actually fire. `boot()` then immediately calls `init()`, which reads `currentUser?.id` for the seeded greeting. On a fresh page load or an OAuth-redirect reload, if Supabase hasn't finished restoring the session yet, `currentUser` can still be `null` at that moment — the greeting is sent with `userId: null`, and the backend's palate-profile fetch is skipped for that call entirely (not a `.single()` issue — `userId` itself is missing). Confirmed via code inspection; not yet fixed. Surfaced while investigating a report that a saved palate profile wasn't reflected in a fresh greeting after a session expired and the user re-logged in.
 
 ## Recently Resolved
 
@@ -293,3 +302,6 @@ Defined in `vercel.json`:
 - **Wini narrating her own search process** (July 2026) — fixed via an explicit "do this silently" instruction in the system prompt.
 - **Markdown links/dividers rendering as plain text** (July 2026) — `renderMarkdown()` now converts `[text](url)` to clickable links and `---` to `<hr>`.
 - **System prompt contradicted web search capability** (July 2026) — the old "you don't have live inventory" line was replaced with instructions to search and link real bottle pages.
+- **Account deletion always failed for users with saved data** (August 2026) — `conversations`, `palate_profile`, and `messages` foreign keys were `ON DELETE NO ACTION` instead of `CASCADE`, so `deleteUser()` failed at the Postgres level with a foreign key violation for any user who had saved a conversation or had a profile row — i.e. most active users. Fixed by altering all three constraints to cascade.
+- **Account-deleted flow left an empty, unseeded chat** (August 2026) — `deleteAccount()` reset chat state but never re-triggered Wini's greeting. Fixed with a success overlay (see Feature 7) whose dismissal always calls `init()`.
+- **Quality floor rule diluted in multi-wine outputs** (August 2026) — the Pinot Noir/Nebbiolo and price-floor rules lived under `YOUR KNOWLEDGE`, several sections downstream of the actual recommendation-generation logic (`HOW YOU RECOMMEND`, variety rules, `HANDLING SITUATIONS`). Worked reliably on direct single-wine asks, got diluted in 3-bottle lists and dinner-party progressions where several other constraints were already competing for attention. Fixed by merging the quality floors into a renamed `RULES FOR EVERY RECOMMENDATION` section alongside variety/producer-rotation rules, with an explicit scope line stating the rules apply to every bottle in any output shape, not just a direct ask.
