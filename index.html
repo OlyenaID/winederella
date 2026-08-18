@@ -508,6 +508,7 @@
     .nudge-btn:hover { opacity: 0.8; }
     .nudge-btn.primary { background: var(--magenta); color: white; border: none; }
     .nudge-btn.secondary { background: transparent; color: var(--wine-rose); border: 0.5px solid var(--linen-border); }
+    .auth-prompt-message { font-size: 12px; font-weight: 300; color: var(--wine-rose); padding: 4px 0 2px 36px; line-height: 1.5; }
 
     /* ── Profile overlay ──────────────────────────────── */
     .profile-backdrop {
@@ -809,6 +810,7 @@
     let currentConvId           = null;  // active conversation ID in Supabase
     let winiResponseCount       = 0;     // counts real responses (not the greeting)
     let nudgeShown              = false;
+    let guestCutoff             = false; // true once a guest hits the 12-exchange cap
     let authMode                = 'signin'; // 'signin' | 'signup'
     let recentRecommendations   = [];    // wine names mentioned this session (max 10)
     const todayDate             = new Date().toISOString().split('T')[0];
@@ -824,12 +826,22 @@
         // onAuthStateChange fires immediately with the current state
         // (INITIAL_SESSION) covering page reloads, OAuth redirects and
         // existing localStorage sessions — no separate getSession() needed.
+        // boot() awaits this promise before seeding the greeting, so currentUser
+        // is always resolved before init() reads it — no race on first load.
+        let resolveInitialAuth;
+        const initialAuthResolved = new Promise(resolve => { resolveInitialAuth = resolve; });
+        let firstAuthEvent = true;
+
         supabaseClient.auth.onAuthStateChange(async (event, authSession) => {
           if (authSession?.user) {
             const isNewSignIn = !currentUser;
             currentUser = authSession.user;
             updateHeaderForUser(currentUser);
             hideModal();
+            if (guestCutoff) {
+              guestCutoff = false;
+              setDisabled(false);
+            }
             // Only save conversation on an explicit new sign-in, not every reload
             if (isNewSignIn && event === 'SIGNED_IN' && !currentConvId) {
               await saveCurrentConversation();
@@ -839,7 +851,10 @@
             currentConvId = null;
             updateHeaderForUser(null);
           }
+          if (firstAuthEvent) { firstAuthEvent = false; resolveInitialAuth(); }
         });
+
+        await initialAuthResolved;
 
       } catch (err) {
         console.warn('Supabase init failed — auth unavailable:', err.message);
@@ -1052,24 +1067,25 @@
       }
     }
 
-    // ── Auth: save nudge strip ─────────────────────────────────────────────────
+    // ── Auth: guest value-moment prompts ───────────────────────────────────────
 
-    function appendNudgeStrip() {
+    function appendAuthPrompt(buttonLabel, { message } = {}) {
+      if (message) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'auth-prompt-message';
+        msgEl.textContent = message;
+        chat.appendChild(msgEl);
+      }
+
       const strip = document.createElement('div');
       strip.className = 'nudge-strip';
 
-      const saveBtn = document.createElement('button');
-      saveBtn.className    = 'nudge-btn primary';
-      saveBtn.textContent  = 'Save my taste profile';
-      saveBtn.addEventListener('click', () => { strip.remove(); showModal(); });
+      const btn = document.createElement('button');
+      btn.className   = 'nudge-btn primary';
+      btn.textContent = buttonLabel;
+      btn.addEventListener('click', () => showModal());
 
-      const laterBtn = document.createElement('button');
-      laterBtn.className   = 'nudge-btn secondary';
-      laterBtn.textContent = 'Maybe later';
-      laterBtn.addEventListener('click', () => strip.remove());
-
-      strip.appendChild(saveBtn);
-      strip.appendChild(laterBtn);
+      strip.appendChild(btn);
       chat.appendChild(strip);
       scrollBottom();
     }
@@ -1226,6 +1242,7 @@
       currentConvId = null;
       winiResponseCount = 0;
       nudgeShown = false;
+      guestCutoff = false;
       recentRecommendations = [];
       await init();
     }
@@ -1614,6 +1631,15 @@
           ? text : contentBlocks
       );
 
+      // Guest turn cap — checked client-side before every send; backend also
+      // enforces this independently as defense in depth
+      if (!currentUser && winiResponseCount >= 12) {
+        appendAuthPrompt('Keep chatting');
+        guestCutoff = true;
+        setDisabled(true);
+        return;
+      }
+
       isLoading = true;
       setDisabled(true);
       addTyping();
@@ -1626,6 +1652,7 @@
             messages: session.messages,
             userId:   currentUser?.id || null,
             recentRecommendations,
+            turnCount: winiResponseCount,
           }),
         });
 
@@ -1670,11 +1697,32 @@
           }
         }
 
-        // Save nudge — show after 3rd real response if not logged in
+        // Real exchange count — tracked for all users, only guests see auth prompts from it
         winiResponseCount++;
-        if (winiResponseCount === 3 && !currentUser && !nudgeShown) {
-          nudgeShown = true;
-          appendNudgeStrip();
+
+        if (!currentUser) {
+          const hasRec = !!data.recommendationMade;
+
+          if (data.cutoff) {
+            // Defense-in-depth: backend independently confirmed the cap, even
+            // though the pre-flight check above should normally catch this first
+            appendAuthPrompt('Keep chatting');
+            guestCutoff = true;
+            setDisabled(true);
+          } else if (data.linksGated && !nudgeShown && hasRec) {
+            appendAuthPrompt('Get it all', {
+              message: "Worth signing in for this one — I'll actually link the bottle, and remember what you liked for next time.",
+            });
+            nudgeShown = true;
+          } else if (data.linksGated) {
+            appendAuthPrompt('Get the link');
+          } else if (!nudgeShown && hasRec) {
+            appendAuthPrompt('Save my palate');
+            nudgeShown = true;
+          } else if (!nudgeShown && winiResponseCount >= 3) {
+            appendAuthPrompt('Remember me');
+            nudgeShown = true;
+          }
         }
 
       } catch (err) {
@@ -1682,7 +1730,7 @@
         appendMessage('wini', `Something went wrong — ${err.message}. Try again?`);
       } finally {
         isLoading = false;
-        setDisabled(false);
+        if (!guestCutoff) setDisabled(false);
         updateSendBtn();
         msgInput.focus();
       }
@@ -1710,6 +1758,7 @@
             messages: session.messages,
             userId:   currentUser?.id || null,
             recentRecommendations: [],
+            turnCount: winiResponseCount,
           }),
         });
 
@@ -1900,6 +1949,12 @@
         session.messages = [];
         currentConvId = null;
         currentUser = null;
+        // Reset guest-session counters too — otherwise the fresh post-delete
+        // chat inherits stale state from the deleted account's conversation
+        winiResponseCount = 0;
+        nudgeShown = false;
+        guestCutoff = false;
+        recentRecommendations = [];
         showDeleteSuccessOverlay(); // seeding runs on dismiss, not immediately
       } catch (err) {
         console.error('delete account failed:', err.message);

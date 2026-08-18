@@ -143,6 +143,21 @@ You default to Australian wines first — you know the regions intimately (Baros
 
 After your 3rd or 4th response in a conversation, if the chat has real substance (more than a one-liner exchange), naturally suggest saving the user's preferences — weave it casually into the end of your response. Keep it in Wini's voice: brief, not salesy, never formulaic. Vary the phrasing every time. Examples: "Worth saving this if you're going to keep cooking like this." / "I could remember your taste for next time if that's useful." / "Want me to keep track of what's working for you?" / "If you want, I can hold onto these preferences for next time." Only do this once per conversation, and only if it genuinely fits the moment.`;
 
+// ── Guest mode ─────────────────────────────────────────────────────────────────
+
+const GUEST_PREAMBLE = `You're speaking with a guest who hasn't signed in.
+
+You have no live web search for this conversation — don't attempt to search, and don't imply you're checking anything live or confirming a current price.
+
+If they ask where to buy a wine, for a shop link, or to check availability: give your picks by name as you normally would, then in one line, in your own voice, let them know they'll need to sign in for the actual link. Vary the wording — don't reuse the same line twice in a session (e.g. "I'll actually link you the bottle once you're signed in.").
+
+After all your normal reply text (including any casual save-my-preferences line), append the following as the very last thing in the message, with nothing else after:
+— <!--LINKS_GATED--> if this reply needed a live shop link you couldn't provide.
+— <!--REC--> if this reply gave a concrete wine recommendation — an actual bottle or short list you're suggesting, not a wine mentioned in passing.
+— If both apply, include both, either order, stacked together.
+— If neither applies, add nothing.
+Never mention either token to the user.`;
+
 // ── Profile injection ──────────────────────────────────────────────────────────
 
 function formatProfileInjection(profile, recentRecs) {
@@ -202,10 +217,21 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, userId, recentRecommendations } = req.body;
+  const { messages, userId, recentRecommendations, turnCount } = req.body;
+  const isGuest = !userId;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  }
+
+  // Guest turn cap — defense in depth, frontend also checks this before sending
+  if (isGuest && turnCount >= 12) {
+    return res.status(200).json({
+      content: [{ type: 'text', text: "I could keep going, but you'll need to sign in — this chat's earned it." }],
+      linksGated: false,
+      recommendationMade: false,
+      cutoff: true,
+    });
   }
 
   // ── Fetch palate profile (never blocks if it fails) ──────────────────────────
@@ -228,27 +254,56 @@ module.exports = async function handler(req, res) {
     console.warn('Palate profile fetch failed (non-fatal):', err.message);
   }
 
+  if (isGuest) {
+    systemPrompt = GUEST_PREAMBLE + '\n\n---\n\n' + systemPrompt;
+  }
+
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
-    const response = await client.messages.create({
+    const requestOptions = {
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       system: systemPrompt,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
       messages: messages && messages.length > 0 ? messages : [
         { role: 'user', content: 'Hi' }
       ],
-    });
+    };
+    // Guests get zero web_search calls, full stop — tool omitted entirely, not just prompt-instructed
+    if (!isGuest) {
+      requestOptions.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
+    }
+
+    const response = await client.messages.create(requestOptions);
 
     // Concatenate all text blocks into one — web search splits the response across
     // multiple text blocks (intro text → search → recommendations text) and the
     // frontend only reads content[0].text, so joining them is required.
-    const combined = response.content
+    let combined = response.content
       .filter(b => b.type === 'text')
       .map(b => b.text)
       .join('');
-    return res.status(200).json({ ...response, content: [{ type: 'text', text: combined }] });
+
+    // Strip guest-mode hidden markers and surface them as flags — a single reply
+    // can carry both (e.g. a recommendation that also needed a shop link)
+    let linksGated = false;
+    let recommendationMade = false;
+    if (combined.includes('<!--LINKS_GATED-->')) {
+      linksGated = true;
+      combined = combined.replace(/<!--LINKS_GATED-->/g, '');
+    }
+    if (combined.includes('<!--REC-->')) {
+      recommendationMade = true;
+      combined = combined.replace(/<!--REC-->/g, '');
+    }
+    combined = combined.trimEnd();
+
+    return res.status(200).json({
+      ...response,
+      content: [{ type: 'text', text: combined }],
+      linksGated,
+      recommendationMade,
+    });
   } catch (err) {
     console.error('Anthropic API error:', err);
     return res.status(500).json({ error: err.message || 'API error' });
