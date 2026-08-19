@@ -308,6 +308,9 @@
       0%, 60%, 100% { transform: translateY(0);   opacity: 0.6; }
       30%            { transform: translateY(-6px); opacity: 1;   }
     }
+    .typing-status { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
+    .typing-status-text { font-size: 13px; font-weight: 300; color: var(--wine-rose); }
+    .typing-status .typing { padding: 0; }
 
     /* ── Input bar ────────────────────────────────────── */
     .input-area {
@@ -1433,10 +1436,22 @@
       return { row, bubble };
     }
 
-    function addTyping() {
+    // ── Streaming reply lifecycle ───────────────────────────────────────────────
+    // One Wini message goes through: status indicator ("Pondering…") → zero or
+    // more real text blocks landing (each revealed with a typewriter effect,
+    // then re-rendered as markdown) → a final authoritative render from the
+    // terminal event, which is always the source of truth regardless of what
+    // was shown progressively.
+
+    const STATUS_COPY = {
+      thinking:  'Pondering…',
+      searching: 'Having a look…',
+      writing:   'Putting it together…',
+    };
+
+    function createStreamingReply() {
       const row = document.createElement('div');
       row.className = 'row wini';
-      row.id = 'typing-row';
 
       const av = document.createElement('div');
       av.className = 'avatar';
@@ -1446,16 +1461,148 @@
 
       const bubble = document.createElement('div');
       bubble.className = 'bubble wini';
-      bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
       row.appendChild(bubble);
-
       chat.appendChild(row);
-      scrollBottom();
+
+      let statusEl = null;
+      let contentEl = null;
+      let accumulatedText = '';
+
+      function showStatus(phase) {
+        if (!statusEl) {
+          statusEl = document.createElement('div');
+          statusEl.className = 'typing-status';
+          statusEl.innerHTML = '<span class="typing-status-text"></span>' +
+            '<div class="typing"><span></span><span></span><span></span></div>';
+          bubble.appendChild(statusEl);
+        }
+        statusEl.querySelector('.typing-status-text').textContent = STATUS_COPY[phase] || STATUS_COPY.thinking;
+        scrollBottom();
+      }
+
+      showStatus('thinking');
+
+      return {
+        setStatus(phase) { showStatus(phase); },
+
+        // Reveals blockText with a typewriter effect, then finalizes it as
+        // rendered markdown once fully shown. Returns a promise so the caller
+        // can pace reading further stream events to the reveal speed.
+        addBlock(blockText) {
+          if (statusEl) { statusEl.remove(); statusEl = null; }
+          if (!contentEl) {
+            contentEl = document.createElement('div');
+            bubble.appendChild(contentEl);
+          }
+          const prefix = accumulatedText;
+          const tokens = blockText.split(/(\s+)/); // keep whitespace tokens for natural spacing
+          return new Promise((resolve) => {
+            let i = 0;
+            const interval = setInterval(() => {
+              if (i >= tokens.length) {
+                clearInterval(interval);
+                accumulatedText += blockText;
+                contentEl.innerHTML = renderMarkdown(accumulatedText);
+                scrollBottom();
+                resolve();
+                return;
+              }
+              i += 2;
+              contentEl.textContent = prefix + tokens.slice(0, i).join('');
+              scrollBottom();
+            }, 15);
+          });
+        },
+
+        // Always the final authority — guarantees what's on screen exactly
+        // matches what gets saved and sent back to Claude next turn, even if
+        // it differs slightly from the progressively-revealed text (e.g. the
+        // cutoff response, which never streams any blocks at all).
+        finalize(finalText) {
+          if (statusEl) { statusEl.remove(); statusEl = null; }
+          if (!contentEl) {
+            contentEl = document.createElement('div');
+            bubble.appendChild(contentEl);
+          }
+          contentEl.innerHTML = renderMarkdown(finalText);
+          scrollBottom();
+        },
+
+        // A mid-stream failure needs different handling depending on whether
+        // any content already rendered — losing visible text a user was
+        // already reading, just to show an error bubble, would be worse
+        // than leaving it and noting the failure in place.
+        handleError(message) {
+          if (statusEl) { statusEl.remove(); statusEl = null; }
+          if (!contentEl) {
+            row.remove();
+            return false; // nothing was shown — caller should render its own error message
+          }
+          const note = document.createElement('div');
+          note.className = 'auth-prompt-message';
+          note.textContent = `Cut off partway through — ${message}. Try again?`;
+          bubble.appendChild(note);
+          scrollBottom();
+          return true; // handled in place
+        },
+
+        // Unconditional — used where a fallback message replaces the whole
+        // reply outright rather than preserving partial content (the boot
+        // greeting isn't worth partially keeping the way a real answer is)
+        remove() { row.remove(); },
+      };
     }
 
-    function removeTyping() {
-      const el = document.getElementById('typing-row');
-      if (el) el.remove();
+    // Shared by sendMessage() and init() so they can't drift out of sync.
+    // Resolves with the terminal 'done' event's payload — same shape the old
+    // single res.json() response had — or throws, same as a failed fetch did.
+    async function streamChatRequest(payload, { onStatus, onBlock } = {}) {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex;
+        while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, newlineIndex).trim();
+          buffer = buffer.slice(newlineIndex + 1);
+          if (!line) continue;
+
+          let event;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            continue; // skip a malformed line rather than break the whole stream
+          }
+
+          if (event.type === 'status') {
+            if (onStatus) onStatus(event.phase);
+          } else if (event.type === 'block') {
+            if (onBlock) await onBlock(event.text);
+          } else if (event.type === 'error') {
+            throw new Error(event.message || 'API error');
+          } else if (event.type === 'done') {
+            return event;
+          }
+        }
+      }
+
+      throw new Error('Connection ended unexpectedly');
     }
 
     // ── Image attach ───────────────────────────────────────────────────────────
@@ -1682,31 +1829,26 @@
 
       isLoading = true;
       setDisabled(true);
-      addTyping();
+
+      const streamingReply = createStreamingReply();
 
       try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const data = await streamChatRequest(
+          {
             messages: session.messages,
             userId:   currentUser?.id || null,
             recentRecommendations,
             turnCount: winiResponseCount,
-          }),
-        });
+          },
+          {
+            onStatus: (phase) => streamingReply.setStatus(phase),
+            onBlock:  (blockText) => streamingReply.addBlock(blockText),
+          }
+        );
 
-        removeTyping();
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Server error ${res.status}`);
-        }
-
-        const data = await res.json();
         const replyText = data?.content?.[0]?.text ?? '';
+        streamingReply.finalize(replyText);
 
-        appendMessage('wini', replyText);
         session.messages.push({ role: 'assistant', content: replyText });
 
         // Save assistant message once fully received
@@ -1771,8 +1913,10 @@
         }
 
       } catch (err) {
-        removeTyping();
-        appendMessage('wini', `Something went wrong — ${err.message}. Try again?`);
+        const handledInPlace = streamingReply.handleError(err.message);
+        if (!handledInPlace) {
+          appendMessage('wini', `Something went wrong — ${err.message}. Try again?`);
+        }
       } finally {
         isLoading = false;
         if (!guestCutoff) setDisabled(false);
@@ -1791,34 +1935,31 @@
 
     async function init() {
       setDisabled(true);
-      addTyping();
 
       session.messages.push({ role: 'user', content: 'Hi' });
 
+      const streamingReply = createStreamingReply();
+
       try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const data = await streamChatRequest(
+          {
             messages: session.messages,
             userId:   currentUser?.id || null,
             recentRecommendations: [],
             turnCount: winiResponseCount,
-          }),
-        });
+          },
+          {
+            onStatus: (phase) => streamingReply.setStatus(phase),
+            onBlock:  (blockText) => streamingReply.addBlock(blockText),
+          }
+        );
 
-        removeTyping();
-
-        if (!res.ok) throw new Error('Failed to connect');
-
-        const data = await res.json();
         const greeting = data?.content?.[0]?.text ?? "Hi, I'm Winederella — Wini for short — your wine guide. Tell me what's going on right now and I'll help.";
-
-        appendMessage('wini', greeting);
+        streamingReply.finalize(greeting);
         session.messages.push({ role: 'assistant', content: greeting });
 
       } catch {
-        removeTyping();
+        streamingReply.remove();
         const fallback = "Hi, I'm Winederella — Wini for short — your wine guide. Tell me what's going on right now and I'll help. Are you shopping, cooking, at a restaurant, or planning something?";
         appendMessage('wini', fallback);
         session.messages.push({ role: 'assistant', content: fallback });

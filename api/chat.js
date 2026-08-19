@@ -227,14 +227,19 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
   }
 
-  // Guest turn cap — defense in depth, frontend also checks this before sending
+  // Guest turn cap — defense in depth, frontend also checks this before sending.
+  // Wrapped in the same one-line NDJSON envelope as a real stream so the
+  // frontend only ever needs one parsing path for a 200 response.
   if (isGuest && turnCount >= 12) {
-    return res.status(200).json({
+    res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8' });
+    res.write(JSON.stringify({
+      type: 'done',
       content: [{ type: 'text', text: "I could keep going, but you'll need to sign in — this chat's earned it." }],
       linksGated: false,
       recommendationMade: false,
       cutoff: true,
-    });
+    }) + '\n');
+    return res.end();
   }
 
   // ── Fetch palate profile (never blocks if it fails) ──────────────────────────
@@ -280,11 +285,49 @@ module.exports = async function handler(req, res) {
       requestOptions.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
     }
 
-    const response = await client.messages.create(requestOptions);
+    res.writeHead(200, {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    const sendEvent = (obj) => res.write(JSON.stringify(obj) + '\n');
 
-    // Concatenate all text blocks into one — web search splits the response across
-    // multiple text blocks (intro text → search → recommendations text) and the
-    // frontend only reads content[0].text, so joining them is required.
+    const stream = client.messages.stream(requestOptions);
+
+    // Forward only complete text blocks, never mid-generation — a hidden guest-mode
+    // marker can only ever appear at the tail of a block, so a block is always
+    // fully safe to send once content_block_stop fires. Tool-use/tool-result
+    // blocks are never forwarded at all — that's what makes web search silent.
+    let sawToolUse = false;
+    let currentBlockType = null;
+    let currentBlockText = '';
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_start') {
+        currentBlockType = event.content_block.type;
+        currentBlockText = '';
+
+        if (currentBlockType === 'server_tool_use') {
+          sawToolUse = true;
+          sendEvent({ type: 'status', phase: 'searching' });
+        } else if (currentBlockType === 'text' && sawToolUse) {
+          sendEvent({ type: 'status', phase: 'writing' });
+        }
+      } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        currentBlockText += event.delta.text;
+      } else if (event.type === 'content_block_stop' && currentBlockType === 'text' && currentBlockText) {
+        const safeText = currentBlockText
+          .replace(/<!--LINKS_GATED-->/g, '')
+          .replace(/<!--REC-->/g, '');
+        if (safeText) sendEvent({ type: 'block', text: safeText });
+      }
+    }
+
+    const response = await stream.finalMessage();
+
+    // Concatenate all text blocks into one — same post-processing as before,
+    // just sourced from the assembled stream result instead of a direct call.
     let combined = response.content
       .filter(b => b.type === 'text')
       .map(b => b.text)
@@ -313,12 +356,14 @@ module.exports = async function handler(req, res) {
     }
     if (posthog) await posthog.shutdown();
 
-    return res.status(200).json({
-      ...response,
+    sendEvent({
+      type: 'done',
       content: [{ type: 'text', text: combined }],
       linksGated,
       recommendationMade,
+      cutoff: false,
     });
+    res.end();
   } catch (err) {
     console.error('Anthropic API error:', err);
     if (posthog) {
@@ -329,6 +374,13 @@ module.exports = async function handler(req, res) {
       });
       await posthog.shutdown();
     }
-    return res.status(500).json({ error: err.message || 'API error' });
+    // Headers may already be sent once streaming has started — signal failure
+    // in-band instead of trying to change the HTTP status at that point
+    if (res.headersSent) {
+      res.write(JSON.stringify({ type: 'error', message: err.message || 'API error' }) + '\n');
+      res.end();
+    } else {
+      res.status(500).json({ error: err.message || 'API error' });
+    }
   }
 };
