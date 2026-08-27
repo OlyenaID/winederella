@@ -840,12 +840,26 @@
     let currentUser             = null;
     let currentConvId           = null;  // active conversation ID in Supabase
     let winiResponseCount       = 0;     // counts real responses (not the greeting)
-    let nudgeShown              = false;
-    let guestCutoff             = false; // true once a guest hits the 12-exchange cap
-    let lastAuthGate            = null;  // which CTA (if any) opened the modal — for signup_completed attribution
-    let authMode                = 'signin'; // 'signin' | 'signup'
+    let nudgeShown               = false;
+    let guestCutoff              = false; // true once a guest hits the 12-exchange cap
+    let authMode                 = 'signin'; // 'signin' | 'signup'
     let recentRecommendations   = [];    // wine names mentioned this session (max 10)
     const todayDate             = new Date().toISOString().split('T')[0];
+
+    // ── Auth: last-clicked gate, survives Google's full-page-redirect OAuth ────
+    // A plain JS variable doesn't survive that redirect — sessionStorage does.
+    // Fails open (returns null / no-ops) if storage is unavailable, matching the
+    // onboarding chips' fail-open pattern.
+    const LAST_AUTH_GATE_KEY = 'wini_last_auth_gate';
+    function setLastAuthGate(gate) {
+      try {
+        if (gate) sessionStorage.setItem(LAST_AUTH_GATE_KEY, gate);
+        else sessionStorage.removeItem(LAST_AUTH_GATE_KEY);
+      } catch {}
+    }
+    function getLastAuthGate() {
+      try { return sessionStorage.getItem(LAST_AUTH_GATE_KEY); } catch { return null; }
+    }
 
     // ── Auth: Supabase init ────────────────────────────────────────────────────
 
@@ -886,12 +900,16 @@
               // Not gated on event === 'SIGNED_IN' — Google OAuth redirects the whole
               // page, so a fresh signup there only ever surfaces as INITIAL_SESSION
               if (isNewSignIn && currentUser.created_at === currentUser.last_sign_in_at) {
-                window.posthog.capture('signup_completed', { gate: lastAuthGate || 'organic' });
-                lastAuthGate = null;
+                window.posthog.capture('signup_completed', { gate: getLastAuthGate() || 'organic' });
+                setLastAuthGate(null);
               }
             }
-            // Only save conversation on an explicit new sign-in, not every reload
-            if (isNewSignIn && event === 'SIGNED_IN' && !currentConvId) {
+            // Not gated on event === 'SIGNED_IN' — Google OAuth redirects the whole
+            // page, so a fresh signup there only ever surfaces as INITIAL_SESSION,
+            // same trap the PostHog capture above already avoids. isNewSignIn alone
+            // still protects against firing on every reload of an existing session,
+            // since session.messages (and so `real`) is empty at boot either way.
+            if (isNewSignIn && !currentConvId) {
               await saveCurrentConversation();
             }
           } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !authSession)) {
@@ -1047,7 +1065,7 @@
       const real = session.messages.filter(
         m => !(m.role === 'user' && m.content === 'Hi')
       );
-      if (real.length < 2) return;
+      if (real.length === 0) return;
 
       try {
         const firstUser = real.find(m => m.role === 'user');
@@ -1132,7 +1150,7 @@
       btn.className   = 'nudge-btn primary';
       btn.textContent = buttonLabel;
       btn.addEventListener('click', () => {
-        lastAuthGate = gate || null;
+        setLastAuthGate(gate || null);
         if (window.posthog) window.posthog.capture('auth_prompt_clicked', { gate });
         showModal();
       });
@@ -1254,7 +1272,7 @@
           <button class="btn-drawer-signin" id="drawerSignInBtn">Sign in</button>`;
         document.getElementById('drawerSignInBtn').addEventListener('click', () => {
           closeDrawer();
-          lastAuthGate = null; // organic — not from a CTA
+          setLastAuthGate(null); // organic — not from a CTA
           showModal();
         });
       }
@@ -2049,7 +2067,7 @@
     // ── Profile overlay ────────────────────────────────────────────────────────
 
     function openProfileOverlay() {
-      if (!currentUser) { lastAuthGate = null; showModal(); return; } // organic — not from a CTA
+      if (!currentUser) { setLastAuthGate(null); showModal(); return; } // organic — not from a CTA
       document.getElementById('profileBackdrop').classList.add('open');
       switchProfileSection('details');
       renderProfileDetails();
