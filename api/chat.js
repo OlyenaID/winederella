@@ -161,6 +161,24 @@ After all your normal reply text (including any casual save-my-preferences line)
 — If neither applies, add nothing.
 Never mention either token to the user.`;
 
+// ── Post sign-in resume ──────────────────────────────────────────────────────────
+// Fires on the one hidden, non-rendered turn sent right after a guest signs in
+// mid-conversation via the links gate — completing the search that was blocked,
+// using the conversation already above. Not a new topic, so no fresh questions.
+
+function resumeLinksPreamble(isNewSignup) {
+  const framing = isNewSignup
+    ? 'They just finished signing up, right in the middle of this conversation, after asking for a shop link as a guest.'
+    : 'They just signed back in, right in the middle of this conversation, after asking for a shop link as a guest.';
+  const openerStyle = isNewSignup
+    ? '"Thanks for signing in — let me grab that link for you."'
+    : '"Good, I know you now — let me get you that link."';
+
+  return `${framing}
+
+In your very next reply: briefly acknowledge that in one short line — something in the spirit of ${openerStyle}, in your own words, never verbatim — then immediately continue completing what they were already asking for, using the conversation already above. Search for the bottle(s) already discussed and link them. Don't re-ask anything they already told you, don't restart the conversation, don't narrate the search.`;
+}
+
 // ── Profile injection ──────────────────────────────────────────────────────────
 
 function formatProfileInjection(profile, recentRecs) {
@@ -220,7 +238,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, userId, recentRecommendations, turnCount } = req.body;
+  const { messages, userId, recentRecommendations, turnCount, resumeContext, isNewSignup } = req.body;
   const isGuest = !userId;
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -264,6 +282,8 @@ module.exports = async function handler(req, res) {
 
   if (isGuest) {
     systemPrompt = GUEST_PREAMBLE + '\n\n---\n\n' + systemPrompt;
+  } else if (resumeContext === 'links') {
+    systemPrompt = resumeLinksPreamble(!!isNewSignup) + '\n\n---\n\n' + systemPrompt;
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

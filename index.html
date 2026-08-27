@@ -741,6 +741,7 @@
 
       <input class="modal-input" type="email"    id="authEmail"    placeholder="Email address" autocomplete="email">
       <input class="modal-input" type="password" id="authPassword" placeholder="Password"      autocomplete="current-password">
+      <input class="modal-input" type="text" id="authNickname" placeholder="What should Wini call you? (optional)" autocomplete="given-name" style="display:none">
       <button class="btn-auth-submit" id="authSubmitBtn">Sign in</button>
       <div class="modal-error" id="authError"></div>
 
@@ -861,6 +862,24 @@
       try { return sessionStorage.getItem(LAST_AUTH_GATE_KEY); } catch { return null; }
     }
 
+    // ── Auth: "a sign-in was just initiated in this tab" flag ──────────────────
+    // Distinguishes a genuine just-completed sign-in/signup from onAuthStateChange
+    // simply firing INITIAL_SESSION for an already-authenticated user reopening
+    // the tab days later — both look identical via isNewSignIn alone (currentUser
+    // starts null either way). Same sessionStorage-survives-the-redirect approach
+    // as the gate, and for the same reason: Google's flow leaves this tab.
+    const AUTH_PENDING_KEY = 'wini_auth_pending';
+    function markAuthPending() {
+      try { sessionStorage.setItem(AUTH_PENDING_KEY, '1'); } catch {}
+    }
+    function consumeAuthPending() {
+      try {
+        const pending = sessionStorage.getItem(AUTH_PENDING_KEY) === '1';
+        sessionStorage.removeItem(AUTH_PENDING_KEY);
+        return pending;
+      } catch { return false; }
+    }
+
     // ── Auth: Supabase init ────────────────────────────────────────────────────
 
     async function initSupabase() {
@@ -888,6 +907,11 @@
         supabaseClient.auth.onAuthStateChange(async (event, authSession) => {
           if (authSession?.user) {
             const isNewSignIn = !currentUser;
+            // Read before hideModal() clears it — this is the only point the
+            // field's value is available.
+            const freshNickname = document.getElementById('authNickname').value.trim() || null;
+            const gate = getLastAuthGate();
+            const isNewSignup = authSession.user.created_at === authSession.user.last_sign_in_at;
             currentUser = authSession.user;
             updateHeaderForUser(currentUser);
             hideModal();
@@ -899,9 +923,8 @@
               window.posthog.identify(currentUser.id, { email: currentUser.email });
               // Not gated on event === 'SIGNED_IN' — Google OAuth redirects the whole
               // page, so a fresh signup there only ever surfaces as INITIAL_SESSION
-              if (isNewSignIn && currentUser.created_at === currentUser.last_sign_in_at) {
-                window.posthog.capture('signup_completed', { gate: getLastAuthGate() || 'organic' });
-                setLastAuthGate(null);
+              if (isNewSignIn && isNewSignup) {
+                window.posthog.capture('signup_completed', { gate: gate || 'organic' });
               }
             }
             // Not gated on event === 'SIGNED_IN' — Google OAuth redirects the whole
@@ -912,6 +935,24 @@
             if (isNewSignIn && !currentConvId) {
               await saveCurrentConversation();
             }
+            // consumeAuthPending() is the real signal that a sign-in action was
+            // just taken in this tab — isNewSignIn alone is also true for an
+            // ordinary reload of an already-authenticated session, which must
+            // not re-trigger the welcome line or (worse) a live search.
+            if (isNewSignIn && consumeAuthPending()) {
+              if (isNewSignup && freshNickname && supabaseClient) {
+                supabaseClient.from('profiles')
+                  .upsert({ user_id: currentUser.id, nickname: freshNickname }, { onConflict: 'user_id' })
+                  .then(({ error }) => { if (error) console.error('Failed to save nickname:', error.message); });
+              }
+              if (gate === 'links') {
+                await resumeBlockedAction(isNewSignup);
+              } else {
+                const name = await getWelcomeName(currentUser, freshNickname);
+                appendMessage('wini', staticWelcomeLine(isNewSignup, name));
+              }
+            }
+            setLastAuthGate(null);
           } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !authSession)) {
             currentUser   = null;
             currentConvId = null;
@@ -947,6 +988,7 @@
       document.getElementById('authError').textContent = '';
       document.getElementById('authEmail').value    = '';
       document.getElementById('authPassword').value = '';
+      document.getElementById('authNickname').value = '';
     }
 
     function setAuthMode(mode) {
@@ -955,17 +997,21 @@
       const toggleText = document.getElementById('authToggleText');
       const toggleLink = document.getElementById('authToggleLink');
       const pwdInput   = document.getElementById('authPassword');
+      const nickInput  = document.getElementById('authNickname');
 
       if (mode === 'signin') {
         submitBtn.textContent  = 'Sign in';
         toggleText.textContent = "Don't have an account?";
         toggleLink.textContent = 'Sign up';
         pwdInput.autocomplete  = 'current-password';
+        nickInput.style.display = 'none';
+        nickInput.value = '';
       } else {
         submitBtn.textContent  = 'Create account';
         toggleText.textContent = 'Already have an account?';
         toggleLink.textContent = 'Sign in';
         pwdInput.autocomplete  = 'new-password';
+        nickInput.style.display = '';
       }
       document.getElementById('authError').textContent = '';
     }
@@ -1004,6 +1050,7 @@
       const btn = document.getElementById('googleSignInBtn');
       btn.disabled = true;
       btn.textContent = 'Redirecting…';
+      markAuthPending();
       await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin },
@@ -1031,6 +1078,7 @@
       submitBtn.disabled = true;
       submitBtn.textContent = authMode === 'signin' ? 'Signing in…' : 'Creating account…';
       errEl.textContent = '';
+      markAuthPending();
 
       try {
         let result;
@@ -1160,6 +1208,80 @@
       scrollBottom();
 
       if (window.posthog) window.posthog.capture('auth_prompt_shown', { gate });
+    }
+
+    // ── Auth: post sign-in transition ───────────────────────────────────────────
+    // What happens the moment auth completes mid-guest-conversation. Only two
+    // outcomes: the links gate blocked something real, so resume and finish that
+    // task — or nothing was actually blocked, so just a short static line.
+
+    function staticWelcomeLine(isNewSignup, name) {
+      if (isNewSignup) {
+        return name ? `Good to have you, ${name} — you're all set.` : `Good to have you — you're all set.`;
+      }
+      return name ? `Welcome back, ${name}.` : `Welcome back.`;
+    }
+
+    // freshNickname (just typed into the signup form, not yet in the DB) always
+    // wins. Otherwise Google's metadata, otherwise whatever's already saved —
+    // graceful fallback to no name at all if none of those have anything.
+    async function getWelcomeName(user, freshNickname) {
+      if (freshNickname) return freshNickname;
+      const metaName = user.user_metadata?.full_name?.split(' ')[0];
+      if (metaName) return metaName;
+      if (!supabaseClient) return null;
+      try {
+        const { data } = await supabaseClient
+          .from('profiles')
+          .select('nickname')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        return data?.nickname || null;
+      } catch {
+        return null;
+      }
+    }
+
+    // Completes the search that was blocked pre-signin, using the guest
+    // conversation already in context. Triggered via a hidden, non-rendered
+    // synthetic user turn — same established pattern as the old "Hi" seed,
+    // justified here because it finishes a real blocked task, not just filler.
+    // Deliberately not persisted (no saveUserMessage call) — same as "Hi" was
+    // excluded from saved history, this trigger shouldn't reappear on reload.
+    async function resumeBlockedAction(isNewSignup) {
+      session.messages.push({ role: 'user', content: 'Continue.' });
+
+      const streamingReply = createStreamingReply();
+      try {
+        const data = await streamChatRequest(
+          {
+            messages: session.messages,
+            userId: currentUser.id,
+            recentRecommendations,
+            turnCount: winiResponseCount,
+            resumeContext: 'links',
+            isNewSignup,
+          },
+          {
+            onStatus: (phase) => streamingReply.setStatus(phase),
+            onBlock:  (blockText) => streamingReply.addBlock(blockText),
+          }
+        );
+
+        const replyText = data?.content?.[0]?.text ?? '';
+        streamingReply.finalize(replyText);
+        session.messages.push({ role: 'assistant', content: replyText });
+        saveAssistantMessage(replyText);
+        winiResponseCount++;
+
+        const newWines = extractWineNames(replyText);
+        recentRecommendations = [...recentRecommendations, ...newWines].slice(-10);
+      } catch {
+        streamingReply.remove();
+        appendMessage('wini', isNewSignup
+          ? "Thanks for signing in — though that link didn't come through just now. Ask me again and I'll try fresh."
+          : "Good, I know you now — though that link didn't come through just now. Ask me again and I'll try fresh.");
+      }
     }
 
     // ── Onboarding: starter chips (shown once ever, guest fresh-chat open) ─────
