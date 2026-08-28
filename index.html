@@ -2162,27 +2162,15 @@
       "Hey, Wini here. Whatever's going on — dinner, a party, standing in a bottle shop confused — I've got you. What's up?",
     ];
 
-    const ONBOARDING_CHIPS_SEEN_KEY = 'wini_onboarding_chips_seen';
-
-    // Shown once ever per browser, not once per session — a reload or a
-    // fresh "New chat" must not bring them back. localStorage can throw
-    // (data: origins, some privacy/storage-blocking settings) rather than
-    // just fail — fail open (show the chips) instead of letting that
-    // exception cancel the whole render.
-    function onboardingChipsAlreadySeen() {
-      try {
-        if (localStorage.getItem(ONBOARDING_CHIPS_SEEN_KEY)) return true;
-        localStorage.setItem(ONBOARDING_CHIPS_SEEN_KEY, '1');
-        return false;
-      } catch {
-        return false;
-      }
-    }
-
+    // Every fresh chat gets the chips — page load, "New chat", or a reset after
+    // account deletion. Deliberately not localStorage-gated: they're a standing
+    // shortcut into the common asks, not a one-time onboarding tour. Resuming an
+    // older conversation from the drawer goes through loadConversation(), which
+    // never calls init(), so chips correctly don't appear on an existing thread.
     function init() {
       const greeting = GUEST_GREETINGS[Math.floor(Math.random() * GUEST_GREETINGS.length)];
       appendMessage('wini', greeting);
-      if (!onboardingChipsAlreadySeen()) appendOnboardingChips();
+      appendOnboardingChips();
       msgInput.focus();
     }
 
